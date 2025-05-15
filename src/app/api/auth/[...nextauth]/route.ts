@@ -126,8 +126,8 @@ console.log("Linear callback URL:", getProperCallbackUrl('linear'));
 
 export const authOptions: AuthOptions = {
   debug: true, // Enable debug mode always to see detailed logs
-  // Remove the database adapter to use JWT sessions instead
-  // adapter: PrismaAdapter(prisma),
+  // PostgreSQL adapter is now available with proper database configuration
+  adapter: PrismaAdapter(prisma),
   useSecureCookies: process.env.NODE_ENV === "production",
   // Log environment variables detection for debugging
   logger: {
@@ -149,10 +149,11 @@ export const authOptions: AuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
-    EmailProvider({
-      server: process.env.EMAIL_SERVER || "",
-      from: process.env.EMAIL_FROM || "noreply@example.com",
-    }),
+    // Email provider requires a database adapter, so we remove it when using JWT strategy
+    // EmailProvider({
+    //   server: process.env.EMAIL_SERVER || "",
+    //   from: process.env.EMAIL_FROM || "noreply@example.com",
+    // }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
