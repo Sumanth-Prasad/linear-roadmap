@@ -126,7 +126,8 @@ console.log("Linear callback URL:", getProperCallbackUrl('linear'));
 
 export const authOptions: AuthOptions = {
   debug: true, // Enable debug mode always to see detailed logs
-  adapter: PrismaAdapter(prisma),
+  // Remove the database adapter to use JWT sessions instead
+  // adapter: PrismaAdapter(prisma),
   useSecureCookies: process.env.NODE_ENV === "production",
   // Log environment variables detection for debugging
   logger: {
@@ -282,7 +283,7 @@ export const authOptions: AuthOptions = {
     },
   },
   session: {
-    // Use JWT strategy for simplicity
+    // Force JWT strategy to avoid database dependency
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
