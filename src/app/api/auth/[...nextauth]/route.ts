@@ -35,59 +35,94 @@ declare module "next-auth/jwt" {
   }
 }
 
-// Custom Linear OAuth provider (not included in NextAuth by default)
-const LinearProvider: OAuthConfig<any> = {
-  id: "linear",
-  name: "Linear",
-  type: "oauth",
-  clientId: process.env.LINEAR_CLIENT_ID!,
-  clientSecret: process.env.LINEAR_CLIENT_SECRET!,
-  authorization: {
-    url: "https://linear.app/oauth/authorize",
-    params: { scope: "read,write" },
-  },
-  token: "https://api.linear.app/oauth/token",
-  userinfo: {
-    url: "https://api.linear.app/graphql",
-    async request({ tokens }) {
-      try {
-        // Fetch the current viewer using GraphQL
-        const res = await fetch("https://api.linear.app/graphql", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${tokens.access_token}`,
-          },
-          body: JSON.stringify({ query: "{ viewer { id name email } }" }),
-        });
-
-        if (!res.ok) {
-          console.error("Linear API error:", await res.text());
-          throw new Error(`Linear API error: ${res.status}`);
-        }
-
-        const response = await res.json();
-        if (response.errors) {
-          console.error("GraphQL errors:", response.errors);
-          throw new Error(`GraphQL errors: ${response.errors[0]?.message}`);
-        }
-
-        return response.data.viewer;
-      } catch (error) {
-        console.error("Linear userinfo error:", error);
-        throw error;
-      }
+// Override the auth method for Linear provider to use fixed production URL
+const createLinearProvider = () => {
+  // Add debugging for Linear provider creation
+  console.log("Creating Linear provider with forced production callback URL");
+  
+  return {
+    id: "linear",
+    name: "Linear",
+    type: "oauth",
+    clientId: process.env.LINEAR_CLIENT_ID!,
+    clientSecret: process.env.LINEAR_CLIENT_SECRET!,
+    authorization: {
+      url: "https://linear.app/oauth/authorize",
+      params: { 
+        scope: "read,write",
+        // Force a specific callback URL that matches what's configured in Linear
+        redirect_uri: "https://linear-roadmap-next.vercel.app/api/auth/callback/linear" 
+      },
     },
-  },
-  profile(profile: { id: string; name: string; email: string }) {
-    return {
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      image: undefined,
-    };
-  },
+    checks: ["pkce", "state"],
+    token: "https://api.linear.app/oauth/token",
+    userinfo: {
+      url: "https://api.linear.app/graphql",
+      async request({ tokens }) {
+        try {
+          // Fetch the current viewer using GraphQL
+          const res = await fetch("https://api.linear.app/graphql", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${tokens.access_token}`,
+            },
+            body: JSON.stringify({ query: "{ viewer { id name email } }" }),
+          });
+
+          if (!res.ok) {
+            console.error("Linear API error:", await res.text());
+            throw new Error(`Linear API error: ${res.status}`);
+          }
+
+          const response = await res.json();
+          if (response.errors) {
+            console.error("GraphQL errors:", response.errors);
+            throw new Error(`GraphQL errors: ${response.errors[0]?.message}`);
+          }
+
+          return response.data.viewer;
+        } catch (error) {
+          console.error("Linear userinfo error:", error);
+          throw error;
+        }
+      },
+    },
+    profile(profile: { id: string; name: string; email: string }) {
+      return {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        image: undefined,
+      };
+    },
+  } as OAuthConfig<any>;
 };
+
+// Create the Linear provider with fixed production URL
+const ModifiedLinearProvider = createLinearProvider();
+
+// Ensure that NEXTAUTH_URL environment is explicitly referenced near the top
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || (
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
+  'http://localhost:3000'
+);
+
+// Configure the proper base URL for Linear OAuth
+// Linear doesn't accept localhost URLs, so for development we must use a production URL
+// or implement a proxy solution like ngrok
+const getProperCallbackUrl = (provider: string) => {
+  // Always use the production URL for Linear
+  if (provider === 'linear') {
+    return 'https://linear-roadmap-next.vercel.app/api/auth/callback/linear';
+  }
+  
+  // For other providers, follow the environment
+  return `${NEXTAUTH_URL}/api/auth/callback/${provider}`;
+};
+
+console.log("NextAuth initialization with URL:", NEXTAUTH_URL);
+console.log("Linear callback URL:", getProperCallbackUrl('linear'));
 
 export const authOptions: AuthOptions = {
   debug: true, // Enable debug mode always to see detailed logs
@@ -96,14 +131,14 @@ export const authOptions: AuthOptions = {
   // Log environment variables detection for debugging
   logger: {
     error(code, ...message) {
-      console.error(code, ...message);
+      console.error("NEXTAUTH ERROR:", code, ...message);
     },
     warn(code, ...message) {
-      console.warn(code, ...message);
+      console.warn("NEXTAUTH WARN:", code, ...message);
     },
     debug(code, ...message) {
       console.log("NEXTAUTH DEBUG:", code, 
-        `NEXTAUTH_URL=${process.env.NEXTAUTH_URL}`, 
+        `NEXTAUTH_URL=${NEXTAUTH_URL}`, 
         `NODE_ENV=${process.env.NODE_ENV}`, 
         ...message);
     }
@@ -139,15 +174,26 @@ export const authOptions: AuthOptions = {
         return { id: user.id, email: user.email, name: user.name } as any;
       }
     }),
-    LinearProvider,
+    ModifiedLinearProvider,
   ],
   // Remove custom pages that don't exist
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Always log the sign in attempt
-      console.log("Sign in attempt for:", user?.email);
+      // Log sign in attempts with provider info
+      console.log("Sign in attempt:", { 
+        provider: account?.provider, 
+        email: user?.email,
+        baseUrl: NEXTAUTH_URL
+      });
       
-      // Always allow sign in - you can add restrictions here if needed
+      // Special handling for Linear (for debugging purposes)
+      if (account?.provider === 'linear') {
+        console.log("Linear account:", { 
+          accessToken: account.access_token ? 'present' : 'missing',
+          params: account.providerAccountId ? 'present' : 'missing'
+        });
+      }
+      
       return true;
     },
     async jwt({ token, user, account }) {
@@ -192,30 +238,47 @@ export const authOptions: AuthOptions = {
       }
     },
     async redirect({ url, baseUrl }) {
-      // Log current redirect attempt for debugging
+      // Force the baseUrl to be the NEXTAUTH_URL value for consistent callbacks
+      const forcedBaseUrl = NEXTAUTH_URL;
+      
       console.log("NextAuth Redirect:", { 
         url, 
-        baseUrl, 
-        NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'not set' 
+        originalBaseUrl: baseUrl,
+        forcedBaseUrl,
+        NEXTAUTH_URL,
+        isCallbackUrl: url.includes('/api/auth/callback/')
       });
       
+      // Special case for OAuth callbacks - always allow these
+      if (url.includes('/api/auth/callback/')) {
+        console.log("Allowing OAuth callback URL:", url);
+        return url;
+      }
+      
+      // Default strategy: allow relative URLs and same-origin absolute URLs
+      if (url.startsWith("/")) {
+        const fullUrl = `${forcedBaseUrl}${url}`;
+        console.log("Redirecting to relative URL:", fullUrl);
+        return fullUrl;
+      }
+      
+      // Try to parse the URL (with error handling)
       try {
-        // For absolute URLs, first check if it's a callback URL with proper origin
-        if (url.startsWith(baseUrl)) {
+        const urlObj = new URL(url);
+        const baseUrlObj = new URL(forcedBaseUrl);
+        
+        // If same origin, allow the redirect
+        if (urlObj.origin === baseUrlObj.origin) {
+          console.log("Redirecting to same-origin URL:", url);
           return url;
         }
-        
-        // For relative URLs, prepend the base URL
-        if (url.startsWith("/")) {
-          return `${baseUrl}${url}`;
-        }
-        
-        // Default to homepage for safety
-        return baseUrl;
-      } catch (error) {
-        console.error("Redirect callback error:", error);
-        return baseUrl;
+      } catch (e) {
+        console.error("Error parsing URL in redirect callback:", e);
       }
+      
+      // Default fallback to base URL
+      console.log("Fallback redirect to base URL:", forcedBaseUrl);
+      return forcedBaseUrl;
     },
   },
   session: {
