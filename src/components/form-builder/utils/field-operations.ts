@@ -5,11 +5,6 @@ export function removeField(fields: FormField[], id: string, activeField: string
   updatedFields: FormField[];
   newActiveField: string | null;
 } {
-  // Don't allow removing the fixed title field
-  if (id === "title") {
-    return { updatedFields: fields, newActiveField: activeField };
-  }
-  
   const updatedFields = fields.filter(field => field.id !== id);
   const newActiveField = activeField === id ? null : activeField;
   

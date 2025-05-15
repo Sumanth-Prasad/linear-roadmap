@@ -4,8 +4,49 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Add global CSS to force buttons to be opaque
+if (typeof document !== 'undefined') {
+  const styleId = 'force-button-opacity-style';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.innerHTML = `
+      button[data-slot="button"],
+      a[data-slot="button"] {
+        opacity: 1 !important;
+        filter: none !important;
+      }
+      .my-forced-opaque-button {
+        opacity: 1 !important;
+        background-color: var(--primary) !important; /* Use primary color for CTA */
+        color: var(--primary-foreground) !important; /* Text color for primary CTA */
+        padding: 0.75rem 1.5rem !important; /* Larger padding */
+        border-radius: 0.5rem !important; /* More rounded corners */
+        box-shadow: 0 2px 8px 0 rgba(0, 118, 255, 0.30) !important; /* Standard pop-out shadow */
+        font-weight: 600 !important; /* Bolder text */
+        z-index: 1000 !important; /* Elevate z-index significantly */
+        transition: transform 0.2s ease-out, box-shadow 0.2s ease-out !important;
+      }
+      .my-forced-opaque-button.super-cta-button {
+        box-shadow: 0 6px 20px 0 rgba(0, 118, 255, 0.45) !important; /* More pronounced shadow */
+      }
+      .my-forced-opaque-button.super-cta-button:hover {
+        transform: scale(1.03) !important;
+        box-shadow: 0 8px 25px 0 rgba(0, 118, 255, 0.5) !important; /* Even stronger shadow on hover */
+      }
+      /* Ensure children of the button are also fully opaque if they inherit opacity */
+      .my-forced-opaque-button > * {
+        opacity: 1 !important;
+        filter: none !important; /* Also try to reset filter if it causes transparency */
+        color: var(--primary-foreground) !important; /* Ensure child text color matches */
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {

@@ -64,13 +64,13 @@ export function AuthSection() {
 
   // Otherwise show login dialog
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if(open) { setView('options'); } }}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
           Log in
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md space-y-4 bg-background dark:bg-neutral-900 bg-white">
+      <DialogContent className="sm:max-w-md space-y-4 bg-background dark:bg-neutral-900 bg-white z-[500]" style={{top: "calc(50px + 2rem)", position: "absolute", transform: "translate(-50%, 0)"}}>
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">Welcome</DialogTitle>
         </DialogHeader>

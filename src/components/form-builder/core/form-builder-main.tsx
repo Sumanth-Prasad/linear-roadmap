@@ -59,45 +59,14 @@ export default function FormBuilder() {
     emoji: "✨"
   });
   
-  // Update Linear title format when form type changes
-  useEffect(() => {
-    // Generate appropriate title format based on form type
-    let titleFormat = '';
-    
-    switch (formSettings.type) {
-      case 'bug':
-        titleFormat = '🐛 Bug: {title}';
-        break;
-      case 'feature':
-        titleFormat = '✨ Feature Request: {title}';
-        break;
-      case 'feedback':
-        titleFormat = '💬 Feedback: {title}';
-        break;
-      case 'question':
-        titleFormat = '❓ Question: {title}';
-        break;
-      case 'custom':
-        titleFormat = `${formSettings.emoji} ${formSettings.customType || 'Request'}: {title}`;
-        break;
-      default:
-        titleFormat = '{title}';
-    }
-    
-    // Update Linear settings with the new title format
-    setLinearSettings(prev => ({
-      ...prev,
-      defaultTitle: titleFormat
-    }));
-  }, [formSettings.type, formSettings.customType, formSettings.emoji]);
-  
   // Linear integration state
   const [linearSettings, setLinearSettings] = useState<LinearIntegrationSettings>({
     issueType: 'customer_request',
     team: '',
     includeCustomerInfo: true,
-    defaultTitle: 'Customer Request: {title}',
-    responseMessage: 'Thank you for your request! We will review it shortly.',
+    defaultTitle: '',
+    responseMessage: '',
+    priority: 'no_priority',
   });
   
   // UI state
@@ -658,6 +627,11 @@ export default function FormBuilder() {
       console.error('Error loading saved form', err);
     }
   }, [initialFormId]);
+
+  // Disabled automatic title format update; users can input their own.
+  useEffect(() => {
+    // Intentionally left blank to prevent overriding custom default title.
+  }, [formSettings.type, formSettings.customType, formSettings.emoji]);
 
   // ===== RENDER =====
   return (

@@ -116,7 +116,7 @@ export function FormSubmitDialog({
 
   if (!forms.length) {
     return (
-      <Button asChild variant={variant} className="cursor-not-allowed opacity-60">
+      <Button asChild variant={variant} className="my-forced-opaque-button">
         <span>Create Form First</span>
       </Button>
     );
@@ -125,7 +125,7 @@ export function FormSubmitDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant} size={size}>{triggerText}</Button>
+        <Button variant={variant} size={size} className="my-forced-opaque-button super-cta-button">{triggerText}</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto bg-card border border-border shadow-lg" style={{backgroundColor:'var(--card)', opacity:1}}>
         <DialogHeader>

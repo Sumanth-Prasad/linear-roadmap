@@ -20,8 +20,8 @@ export async function createForm(formData: any) {
       title: formData.title || "Untitled Form",
       description: formData.description,
       userId: session.user.id,
-      teamId: formData.teamId,
-      projectId: formData.projectId,
+      teamId: formData.teamId || null,
+      projectId: formData.projectId || null,
       fields: formData.fields || [],
       settings: formData.settings || {},
       linearSettings: formData.linearSettings || {}
@@ -35,20 +35,20 @@ export async function createForm(formData: any) {
 /**
  * Get all forms for the current user
  */
-export async function getUserForms() {
+export async function getUserForms(teamId?: string | null) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user?.id) {
     return [];
   }
   
+  const whereClause: any = { userId: session.user.id };
+  if (teamId) {
+    whereClause.OR = [{ teamId }, { teamId: null }];
+  }
   return prisma.form.findMany({
-    where: {
-      userId: session.user.id
-    },
-    orderBy: {
-      updatedAt: 'desc'
-    }
+    where: whereClause,
+    orderBy: { updatedAt: 'desc' }
   });
 }
 
@@ -91,8 +91,8 @@ export async function updateForm(id: string, formData: any) {
     data: {
       title: formData.title,
       description: formData.description,
-      teamId: formData.teamId,
-      projectId: formData.projectId,
+      teamId: formData.teamId || null,
+      projectId: formData.projectId || null,
       fields: formData.fields,
       settings: formData.settings,
       linearSettings: formData.linearSettings,

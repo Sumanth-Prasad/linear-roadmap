@@ -47,6 +47,7 @@ export interface LinearIntegrationSettings {
   status?: string;
   labels?: string[];
   assignee?: string;
+  priority?: import("../linear/types").LinearPriority;
   includeCustomerInfo: boolean;
   defaultTitle: string;
   responseMessage: string;
