@@ -3,6 +3,9 @@
 import { getLinearClient } from "@/lib/linear";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { upsertCustomer } from "@/lib/linear-customer";
 
 // Server action to create a comment
 export async function createComment(formData: FormData): Promise<void> {
@@ -185,6 +188,42 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
     }
 
     if (linearSettings?.issueType === 'customer_request') {
+      // ===== Determine customer identity =====
+      const session = await getServerSession(authOptions);
+      // Prefer session user email; fall back to email field in form, else undefined
+      const customerEmail = (session as any)?.user?.email || fieldEntries['email'];
+      const customerName = (session as any)?.user?.name || fieldEntries['name'] || 'Anonymous';
+
+      let customerExternalId: string | undefined;
+      if (customerEmail) {
+        customerExternalId = customerEmail; // Use raw email as a simple externalId
+
+        // Attempt to upsert the Customer so we reuse existing one if the domain already exists
+        const emailDomain = customerEmail.split('@')[1]?.toLowerCase();
+
+        // Very small allow-list of public providers we don't want to store as Customer domains
+        const publicProviders = [
+          'gmail.com',
+          'outlook.com',
+          'hotmail.com',
+          'yahoo.com',
+          'icloud.com',
+          'aol.com',
+        ];
+
+        const domains = emailDomain && !publicProviders.includes(emailDomain) ? [emailDomain] : [];
+
+        try {
+          await upsertCustomer({
+            name: customerName,
+            domains,
+            externalId: customerEmail,
+          });
+        } catch (err) {
+          console.error('Customer upsert failed', err);
+        }
+      }
+
       // Build title and description similarly for customer requests.
       const crTitleTemplate: string = linearSettings?.defaultTitle ?? rawSubmittedTitle;
       const crTitle = replaceMentionTokens(crTitleTemplate).replace('{title}', rawSubmittedTitle);
@@ -204,7 +243,8 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
       // Step 2: attach a customer need (request) to it
       const needInput: Record<string, any> = {
         issueId: issueCreate.issue.id,
-        body: crDesc
+        body: crDesc,
+        ...(customerExternalId ? { customerExternalId } : {})
       };
       const needMutation = `mutation CustomerNeedCreate($input: CustomerNeedCreateInput!) { customerNeedCreate(input: $input) { success } }`;
       await client.client.rawRequest(needMutation, { input: needInput });
