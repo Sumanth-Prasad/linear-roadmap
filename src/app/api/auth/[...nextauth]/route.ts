@@ -93,6 +93,21 @@ export const authOptions: AuthOptions = {
   debug: true, // Enable debug mode always to see detailed logs
   adapter: PrismaAdapter(prisma),
   useSecureCookies: process.env.NODE_ENV === "production",
+  // Log environment variables detection for debugging
+  logger: {
+    error(code, ...message) {
+      console.error(code, ...message);
+    },
+    warn(code, ...message) {
+      console.warn(code, ...message);
+    },
+    debug(code, ...message) {
+      console.log("NEXTAUTH DEBUG:", code, 
+        `NEXTAUTH_URL=${process.env.NEXTAUTH_URL}`, 
+        `NODE_ENV=${process.env.NODE_ENV}`, 
+        ...message);
+    }
+  },
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -126,11 +141,7 @@ export const authOptions: AuthOptions = {
     }),
     LinearProvider,
   ],
-  // Set a fallback error page to avoid the default error UI
-  pages: {
-    error: '/auth/error',
-    signIn: '/auth/signin',
-  },
+  // Remove custom pages that don't exist
   callbacks: {
     async signIn({ user, account, profile }) {
       // Always log the sign in attempt
@@ -181,13 +192,25 @@ export const authOptions: AuthOptions = {
       }
     },
     async redirect({ url, baseUrl }) {
+      // Log current redirect attempt for debugging
+      console.log("NextAuth Redirect:", { 
+        url, 
+        baseUrl, 
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'not set' 
+      });
+      
       try {
-        // Handle relative and absolute URLs
-        if (url.startsWith("/")) {
-          return `${baseUrl}${url}`;
-        } else if (new URL(url).origin === baseUrl) {
+        // For absolute URLs, first check if it's a callback URL with proper origin
+        if (url.startsWith(baseUrl)) {
           return url;
         }
+        
+        // For relative URLs, prepend the base URL
+        if (url.startsWith("/")) {
+          return `${baseUrl}${url}`;
+        }
+        
+        // Default to homepage for safety
         return baseUrl;
       } catch (error) {
         console.error("Redirect callback error:", error);
@@ -213,17 +236,6 @@ export const authOptions: AuthOptions = {
     }
   },
   secret: process.env.NEXTAUTH_SECRET,
-  logger: {
-    error(code, ...message) {
-      console.error(code, ...message);
-    },
-    warn(code, ...message) {
-      console.warn(code, ...message);
-    },
-    debug(code, ...message) {
-      console.log(code, ...message);
-    },
-  },
   events: {
     async signIn(message) {
       console.log("User signed in:", message);
