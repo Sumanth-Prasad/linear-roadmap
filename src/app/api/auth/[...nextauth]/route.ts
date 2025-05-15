@@ -90,7 +90,7 @@ const LinearProvider: OAuthConfig<any> = {
 };
 
 export const authOptions: AuthOptions = {
-  debug: process.env.NODE_ENV === "development",
+  debug: true, // Enable debug mode always to see detailed logs
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
@@ -162,6 +162,13 @@ export const authOptions: AuthOptions = {
       
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
   },
   session: {
     strategy: "jwt",
@@ -169,12 +176,29 @@ export const authOptions: AuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: `__Secure-next-auth.session-token`,
+      name: `next-auth.session-token`, // Removed __Secure- prefix for compatibility
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: true,
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
       },
     },
   },
@@ -204,8 +228,8 @@ export const authOptions: AuthOptions = {
       console.log("Account linked:", message);
     },
     async session(message) {
-      // Uncomment for detailed session debug (can be noisy)
-      // console.log("Session updated:", message);
+      // For debugging session issues - enabled temporarily
+      console.log("Session updated:", message);
     },
   },
 };
