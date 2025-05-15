@@ -116,9 +116,9 @@ export function FormSubmitDialog({
 
   if (!forms.length) {
     return (
-      <Button asChild variant={variant} className="my-forced-opaque-button">
+      <div className="inline-flex items-center px-4 py-2 text-sm text-gray-500 bg-gray-100 border border-dashed border-gray-300 rounded cursor-not-allowed opacity-70">
         <span>Create Form First</span>
-      </Button>
+      </div>
     );
   }
 

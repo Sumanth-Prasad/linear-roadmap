@@ -34,11 +34,27 @@ if (typeof document !== 'undefined') {
         transform: scale(1.03) !important;
         box-shadow: 0 8px 25px 0 rgba(0, 118, 255, 0.5) !important; /* Even stronger shadow on hover */
       }
+      /* Dull CTA version - for "Create Form First" */
+      .my-forced-opaque-button.dull-cta-button {
+        background-color: transparent !important; /* Almost invisible background */
+        color: var(--muted-foreground) !important; /* Very muted text */
+        box-shadow: none !important; /* No shadow */
+        border: 1px dashed var(--muted) !important; /* Subtle dashed border */
+        opacity: 0.7 !important; /* Further reduce visibility */
+        font-weight: normal !important; /* Remove bold text */
+        padding: 0.5rem 1rem !important; /* Smaller padding */
+      }
+      .my-forced-opaque-button.dull-cta-button:hover {
+        background-color: var(--muted) !important; /* Just barely visible on hover */
+        color: var(--foreground) !important; /* Only slightly more contrast on hover */
+        opacity: 0.9 !important; /* Slightly more visible on hover */
+        border-style: solid !important; /* More solid on hover */
+      }
       /* Ensure children of the button are also fully opaque if they inherit opacity */
       .my-forced-opaque-button > * {
         opacity: 1 !important;
         filter: none !important; /* Also try to reset filter if it causes transparency */
-        color: var(--primary-foreground) !important; /* Ensure child text color matches */
+        color: inherit !important; /* Inherit color from parent button */
       }
     `;
     document.head.appendChild(style);
