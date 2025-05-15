@@ -92,6 +92,7 @@ const LinearProvider: OAuthConfig<any> = {
 export const authOptions: AuthOptions = {
   debug: true, // Enable debug mode always to see detailed logs
   adapter: PrismaAdapter(prisma),
+  useSecureCookies: process.env.NODE_ENV === "production",
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -125,82 +126,91 @@ export const authOptions: AuthOptions = {
     }),
     LinearProvider,
   ],
+  // Set a fallback error page to avoid the default error UI
+  pages: {
+    error: '/auth/error',
+    signIn: '/auth/signin',
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log("Sign in attempt:", { 
-        provider: account?.provider, 
-        userId: user?.id,
-        email: user?.email 
-      });
+      // Always log the sign in attempt
+      console.log("Sign in attempt for:", user?.email);
+      
+      // Always allow sign in - you can add restrictions here if needed
       return true;
     },
-    async jwt({ token, account, user }) {
-      // Keep the initial token info
-      if (user) {
-        token.id = user.id;
+    async jwt({ token, user, account }) {
+      try {
+        // Initial sign in
+        if (user) {
+          token.id = user.id;
+          token.email = user.email;
+        }
+        
+        // Keep the access token from providers like Linear
+        if (account?.provider === "linear") {
+          token.linearAccessToken = account.access_token;
+        }
+        
+        return token;
+      } catch (error) {
+        console.error("JWT callback error:", error);
+        return token;
       }
-      
-      // Preserve the Linear access token so we can use it later
-      if (account?.provider === "linear") {
-        token.linearAccessToken = account.access_token;
-        token.linearTokenType = account.token_type;
-        token.linearProviderAccountId = account.providerAccountId;
-      }
-      
-      return token;
     },
     async session({ session, token }) {
-      if (token.id) {
-        session.user.id = token.id as string;
+      try {
+        // Simple session with minimal data to avoid issues
+        if (token && session.user) {
+          session.user.id = token.id as string;
+          session.user.email = token.email as string;
+        }
+        
+        // Keep Linear token in session if present
+        if (token.linearAccessToken) {
+          session.linearAccessToken = token.linearAccessToken as string;
+          session.user.role = "developer";
+        } else {
+          session.user.role = "customer";
+        }
+        
+        return session;
+      } catch (error) {
+        console.error("Session callback error:", error);
+        return session;
       }
-      
-      // Add a role helper to session
-      session.user.role = token.linearAccessToken ? "developer" : "customer";
-      
-      // Expose token for API calls (optional)
-      session.linearAccessToken = token.linearAccessToken as string || null;
-      
-      return session;
     },
     async redirect({ url, baseUrl }) {
-      // Allows relative callback URLs
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      try {
+        // Handle relative and absolute URLs
+        if (url.startsWith("/")) {
+          return `${baseUrl}${url}`;
+        } else if (new URL(url).origin === baseUrl) {
+          return url;
+        }
+        return baseUrl;
+      } catch (error) {
+        console.error("Redirect callback error:", error);
+        return baseUrl;
+      }
     },
   },
   session: {
+    // Use JWT strategy for simplicity
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  // Simplified cookie configuration
   cookies: {
     sessionToken: {
-      name: `next-auth.session-token`, // Removed __Secure- prefix for compatibility
+      name: "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
-      },
-    },
-    callbackUrl: {
-      name: `next-auth.callback-url`,
-      options: {
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-    csrfToken: {
-      name: `next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
+      }
+    }
   },
   secret: process.env.NEXTAUTH_SECRET,
   logger: {
