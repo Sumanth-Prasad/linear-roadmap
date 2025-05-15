@@ -22,7 +22,12 @@ import {
   ElementFormatType,
   TextFormatType,
   $setSelection,
-  SELECTION_CHANGE_COMMAND
+  SELECTION_CHANGE_COMMAND,
+  $isTextNode,
+  $isParagraphNode,
+  $isElementNode,
+  $isRootNode,
+  ElementNode
 } from "lexical";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 
@@ -69,6 +74,9 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 
 // Import the FieldType and FormField types
 import { FieldType, FormField } from "@/components/form-builder/core/types";
+
+// Import lexical-beautiful-mentions plugin and node
+import { BeautifulMentionNode } from "lexical-beautiful-mentions";
 
 // Define a basic theme for the editor
 const editorTheme = {
@@ -204,13 +212,27 @@ function ToolbarPlugin() {
             
             // Update element format state
             const anchorNode = selection.anchor.getNode();
-            const element = anchorNode.getKey() === 'root' 
-              ? anchorNode 
-              : anchorNode.getTopLevelElementOrThrow();
-            // Check if getFormat exists on the element and correctly handle the returned format
+            let nodeToQueryFormatFrom: ElementNode | null;
+            if ($isRootNode(anchorNode)) {
+              const firstChild = anchorNode.getFirstChild();
+              nodeToQueryFormatFrom = $isElementNode(firstChild) ? firstChild : null;
+            } else {
+              let baseElement = $isElementNode(anchorNode) ? anchorNode : anchorNode.getParent();
+              if (baseElement && !$isRootNode(baseElement)) {
+                nodeToQueryFormatFrom = baseElement.getTopLevelElementOrThrow();
+              } else if (baseElement && $isRootNode(baseElement)) {
+                // This case means anchorNode was a direct child of root, or its parent was root.
+                // We should use the child itself if it's an element, or root's first child if baseElement became root.
+                const targetNode = $isElementNode(anchorNode) ? anchorNode : baseElement.getFirstChild();
+                nodeToQueryFormatFrom = $isElementNode(targetNode) ? targetNode : null;
+              } else {
+                nodeToQueryFormatFrom = null; // Fallback if no suitable element found
+              }
+            }
+
             let formatValue: ElementFormatType = "left";
-            if (element.getFormat && typeof element.getFormat === 'function') {
-              const format = element.getFormat();
+            if (nodeToQueryFormatFrom && typeof nodeToQueryFormatFrom.getFormat === 'function') {
+              const format = nodeToQueryFormatFrom.getFormat();
               if (format === 0) formatValue = "left";
               else if (format === 1) formatValue = "center"; 
               else if (format === 2) formatValue = "right";
@@ -219,56 +241,50 @@ function ToolbarPlugin() {
             setElementFormatState(formatValue);
             
             // Detect block type (paragraph, heading, or list)
-            const parentElement = anchorNode.getTopLevelElementOrThrow();
-            
+            let blockDefiningNode;
+            if ($isRootNode(anchorNode)) {
+                blockDefiningNode = anchorNode; // Or anchorNode.getFirstChild(); depending on desired root behavior
+            } else {
+                blockDefiningNode = anchorNode.getTopLevelElementOrThrow();
+            }
+             
             // Simplified logic for detecting headings and lists
-            if ($isHeadingNode(parentElement)) {
-              // It's a heading, get the tag (h1, h2, h3)
-              setBlockType(parentElement.getTag());
+            if ($isHeadingNode(blockDefiningNode)) {
+              setBlockType(blockDefiningNode.getTag());
               setIsListActive({ bullet: false, numbered: false });
             } else {
               // First check if the current node is a list item
-              let isInList = $isListItemNode(parentElement);
-              let listType = '';
-              let currentNode = parentElement;
+              let isInList = $isListItemNode(blockDefiningNode);
+              let listQueryNode = blockDefiningNode;
               
-              // If not a list item, check ancestors
-              if (!isInList) {
-                let parent = parentElement.getParent();
-                while (parent !== null) {
-                  if ($isListItemNode(parent)) {
-                    isInList = true;
-                    currentNode = parent;
-                    break;
-                  }
-                  parent = parent.getParent();
+              // If blockDefiningNode is not a ListItem itself, and it's an ElementNode (or TextNode's parent),
+              // check its parents to see if we are inside a list.
+              if (!isInList && $isElementNode(listQueryNode)) { 
+                let parent = listQueryNode.getParent();
+                while (parent && !$isRootNode(parent)) { 
+                    if ($isListItemNode(parent)) {
+                        isInList = true;
+                        listQueryNode = parent; // This is the ListItemNode
+                        break;
+                    }
+                    parent = parent.getParent();
                 }
               }
               
-              // If we found a list item, determine the list type
-              if (isInList) {
-                // Get the parent list node to determine the type
-                let listNode = currentNode.getParent();
-                while (listNode !== null && !$isListNode(listNode)) {
-                  listNode = listNode.getParent();
-                }
-                
-                if (listNode !== null && $isListNode(listNode)) {
-                  // Get the list type directly from ListNode
-                  listType = listNode.getListType();
-                  
+              if (isInList && $isListItemNode(listQueryNode)) {
+                const listNode = listQueryNode.getParent(); 
+                if (listNode && $isListNode(listNode)) {
+                  const listType = listNode.getListType();
                   setBlockType('list');
                   setIsListActive({
                     bullet: listType === 'bullet',
                     numbered: listType === 'number'
                   });
                 } else {
-                  // Shouldn't happen, but just in case
                   setBlockType('paragraph');
                   setIsListActive({ bullet: false, numbered: false });
                 }
               } else {
-                // Default to paragraph
                 setBlockType('paragraph');
                 setIsListActive({ bullet: false, numbered: false });
               }
@@ -540,9 +556,12 @@ interface MentionMenuState {
 const editorConfig = {
   namespace: "badge-editor",
   theme: editorTheme,
-  // Register all nodes that might be needed for markdown
+  // Register both the legacy custom MentionNode (to avoid breaking existing
+  // code paths) and BeautifulMentionNode so that mentions created via
+  // lexical-beautiful-mentions render correctly and survive serialization.
   nodes: [
     MentionNode,
+    BeautifulMentionNode,
     HeadingNode,
     QuoteNode,
     ListItemNode,
@@ -650,7 +669,8 @@ function MentionPlugin({ fields, fieldId, containerRef }: { fields: FormField[];
           // This approach replaces the text node's content rather than trying
           // to manipulate the DOM structure directly
           
-          // Create the new content
+          // Create our existing Badge mention node so that it renders via the
+          // previously styled <Badge> component.
           const mentionNode = new MentionNode(selectedField.id, selectedField.label);
           
           // Get the parent - might be a paragraph or another element
@@ -800,6 +820,61 @@ function MentionPlugin({ fields, fieldId, containerRef }: { fields: FormField[];
 /*                               Main Editor                                  */
 /* -------------------------------------------------------------------------- */
 
+// Plugin to handle initial content loading from a string value (markdown or tokenized)
+function InitialContentPlugin({ initialValue, isMarkdown }: { initialValue: string; isMarkdown: boolean }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    // Proceed to update editor state if initialValue is different
+    if (initialValue && initialValue.trim() !== '') {
+      editor.update(() => {
+        const root = $getRoot();
+        root.clear(); 
+
+        // Always parse for `@[label](id)` tokens, regardless of isMarkdown.
+        // Markdown specific rendering (bold, italic, lists etc.) is handled by RichTextPlugin
+        // when isMarkdown is true. This plugin ensures mentions are consistently nodes.
+        const paragraph = $createParagraphNode();
+        const tokenRegex = /@\[([^\]]+)\]\(([^)]+)\)/g; 
+        let lastIndex = 0;
+        let match;
+        while ((match = tokenRegex.exec(initialValue)) !== null) {
+          const [full, label, id] = match;
+          const start = match.index;
+          if (start > lastIndex) {
+            paragraph.append($createTextNode(initialValue.slice(lastIndex, start)));
+          }
+          paragraph.append(new MentionNode(id, label));
+          lastIndex = start + full.length;
+        }
+        if (lastIndex < initialValue.length) {
+          paragraph.append($createTextNode(initialValue.slice(lastIndex)));
+        }
+        
+        if (paragraph.getChildrenSize() > 0) {
+            root.append(paragraph);
+        } else {
+            // Ensure editor isn't totally blank if value was just whitespace or empty after parsing
+            root.append($createParagraphNode().append($createTextNode(''))); // Ensure a text node exists
+        }
+      });
+    } else {
+      // Value is empty or only whitespace, ensure editor is empty with a paragraph
+      editor.update(() => {
+        const root = $getRoot();
+        root.clear();
+        root.append($createParagraphNode());
+      });
+    }
+  }, [editor, initialValue, isMarkdown]); // Add isMarkdown back to dependency array
+
+  return null;
+}
+
 interface LexicalBadgeEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -833,6 +908,7 @@ export function LexicalBadgeEditor({
       theme: editorTheme,
       nodes: [
         MentionNode,
+        BeautifulMentionNode,
         HeadingNode,
         QuoteNode,
         ListItemNode,
@@ -845,13 +921,13 @@ export function LexicalBadgeEditor({
       onError: (e: Error) => {
         console.error(e);
       },
-      // Start with an empty editor instead of loading content
-      // Only load content if value is non-empty
-      editorState: value && value.trim() !== '' && isMarkdown ? 
-        () => $convertFromMarkdownString(value, TRANSFORMERS) : 
-        undefined
+      // editorState is now handled by InitialContentPlugin
+      editorState: undefined
     };
-  }, [isMarkdown, value]);
+  // Minimal dependencies: if theme or base nodes could change based on props, add them here.
+  // For now, assuming these are static for the lifetime of LexicalBadgeEditor,
+  // or that re-keying of LexicalBadgeEditor handles changes.
+  }, []);
 
   // Define URL matcher for AutoLinkPlugin
   const URL_MATCHER = /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/i;
@@ -875,27 +951,64 @@ export function LexicalBadgeEditor({
   const [editorState, setEditorState] = useState<string>(value);
 
   const handleEditorChange = useCallback(
-    (state) => {
-      state.read(() => {
-        setEditorState(state.toJSON());
+    (editorState) => {
+      // Keep local machine-readable representation (for debugging etc.)
+      editorState.read(() => {
+        setEditorState(editorState.toJSON());
       });
-      
-      // Export different formats based on the mode
-      if (isMarkdown) {
-        // Export markdown when in markdown mode
-        const markdown = state.read(() => {
-          return $convertToMarkdownString(TRANSFORMERS);
-        });
-        onChange(markdown);
-      } else {
-        // Export plain text for regular mode (badges will be included as text)
-        const plain = state.read(() => {
-          return $getRoot().getTextContent();
-        });
-        onChange(plain);
-      }
+
+      // In plain-text mode we want to embed special mention markup so that
+      // mentions can be restored later when the text is re-loaded.  We walk the
+      // editor AST and convert BeautifulMentionNodes to the token format that
+      // the rest of the application already understands: `@[label](id)`.
+      const serialized = editorState.read(() => {
+        const traverse = (node) => {
+          // Handle our custom MentionNode or BeautifulMentionNode.
+          if (node.getType) {
+            const t = node.getType();
+            if (t === "mention") {
+              const id = (node as any).__id ?? "";
+              const label = (node as any).__label ?? id;
+              return `@[${label}](${id})`;
+            }
+            if (t === "beautifulMention") {
+              const value = node.getValue();
+              const data = node.getData?.() ?? {};
+              const id = data.id ?? value;
+              return `@[${value}](${id})`;
+            }
+          }
+
+          // Handle TextNode specifically to get its content.
+          if ($isTextNode(node)) {
+            return node.getTextContent();
+          }
+
+          // Recurse over children for ElementNodes (or any node that can have children).
+          let result = "";
+          const children = node.getChildren?.();
+          if (children && Array.isArray(children)) {
+            children.forEach((child) => {
+              result += traverse(child);
+            });
+          }
+
+          // Append newline for paragraph-like nodes to retain spacing.
+          if ($isParagraphNode(node)) {
+            result += "\n";
+          }
+          return result;
+        };
+
+        // Process the root, trim, and consolidate multiple newlines to single
+        let serializedText = traverse($getRoot()).trim();
+        serializedText = serializedText.replace(/\n\s*\n/g, '\n'); 
+        return serializedText;
+      });
+
+      onChange(serialized);
     },
-    [onChange, isMarkdown],
+    [onChange],
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -980,6 +1093,9 @@ export function LexicalBadgeEditor({
         <OnChangePlugin onChange={handleEditorChange} />
         <MentionPlugin fields={fields} fieldId={fieldId} containerRef={containerRef} />
         
+        {/* Plugin to handle initial content setting */}
+        <InitialContentPlugin initialValue={value} isMarkdown={isMarkdown} />
+        
         {/* Add List Plugin when in markdown mode */}
         {isMarkdown && <ListPlugin />}
         
@@ -991,6 +1107,9 @@ export function LexicalBadgeEditor({
         
         {/* Add auto-focus plugin (optional) */}
         {autoFocus && <AutoFocusPlugin />}
+
+        {/* BeautifulMentionNode renders without needing the full plugin; we omit
+            BeautifulMentionsPlugin to avoid it auto-selecting suggestions. */}
       </LexicalComposer>
     </div>
   );

@@ -391,87 +391,66 @@ export function LinearSettings({
     }
   };
 
-  // Function to preserve mentions in serialized form
+  // Function to extract and preserve mentions from serialized Lexical state
   const preserveMentionsInString = (editorElement: HTMLElement | null, plainTextValue: string): string => {
     if (!editorElement) return plainTextValue;
     
-    // Try multiple possible selectors for mention badges
-    const mentionSelectors = [
-      '[data-mention]',                     // Common attribute for mentions
-      '[data-type="mention"]',              // Another common attribute
-      '.mention-badge',                     // Class-based selection
-      '.badge',                             // Generic badge class
-      '[class*="mention"]',                 // Any class containing "mention"
-      '[class*="badge"]',                   // Any class containing "badge"
-      '[data-lexical-mention]',             // Lexical-specific attribute
-      'span[data-lexical-decorator="true"]' // Lexical decorator elements
-    ];
-    
-    // Try each selector until we find mentions
-    let mentionElements: NodeListOf<Element> = document.createDocumentFragment().querySelectorAll('*'); // Empty NodeList
-    
-    for (const selector of mentionSelectors) {
-      const elements = editorElement.querySelectorAll(selector);
-      if (elements.length > 0) {
-        console.log(`Found ${elements.length} mentions using selector: ${selector}`);
-        mentionElements = elements;
-        break;
-      }
-    }
-    
-    if (mentionElements.length === 0) {
-      console.log("No mentions found in the editor with any selector");
-      return plainTextValue;
-    }
-    
-    // Clone the text value so we can modify it
-    let result = plainTextValue;
-    
-    // Create a temporary div to help with text extraction
-    const tempDiv = document.createElement('div');
-    
-    // Process each mention badge
-    mentionElements.forEach((mentionEl) => {
-      // Try different ways to extract the mention ID and text
-      let mentionId = '';
-      let mentionText = '';
-      
-      // Try data-* attributes first
-      const possibleIdAttrs = ['data-mention-id', 'data-id', 'id', 'data-value'];
-      for (const attr of possibleIdAttrs) {
-        const value = mentionEl.getAttribute(attr);
-        if (value) {
-          mentionId = value;
-          break;
-        }
-      }
-      
-      // If no ID found, try to use a fallback
-      if (!mentionId) {
-        mentionId = 'mention-' + Math.random().toString(36).substring(2, 9);
-      }
-      
-      // Extract text content
-      tempDiv.innerHTML = mentionEl.innerHTML;
-      mentionText = tempDiv.textContent || '';
-      
-      // Remove any @ symbol at the beginning if present
-      mentionText = mentionText.replace(/^@/, '').trim();
-      
-      if (mentionText) {
-        // Create a serialized mention tag
-        const mentionTag = `@[${mentionText}](${mentionId})`;
+    // If the value is a serialized JSON string from the Lexical editor, process it
+    if (plainTextValue.startsWith('{') && plainTextValue.endsWith('}')) {
+      try {
+        const editorState = JSON.parse(plainTextValue);
         
-        // For simplicity, we'll append mentions at the end if we can't determine position
-        if (!result.includes(mentionTag) && !result.includes(`@${mentionText}`)) {
-          console.log(`Adding mention tag: ${mentionTag}`);
-          result = result.trim() + ' ' + mentionTag + ' ';
+        // Extract mentions from the Lexical state
+        let extractedMentions: {id: string, text: string}[] = [];
+        
+        // Helper function to recursively traverse the editor state
+        const findMentionsInNode = (node: any) => {
+          // Check if this is a BeautifulMention node
+          if (node.type === 'beautifulMention') {
+            extractedMentions.push({
+              id: node.data?.id || node.value,
+              text: node.value
+            });
+          }
+          
+          // Process children
+          if (node.children && Array.isArray(node.children)) {
+            node.children.forEach(findMentionsInNode);
+          }
+        };
+        
+        // Start traversal from root
+        if (editorState.root && editorState.root.children) {
+          editorState.root.children.forEach(findMentionsInNode);
         }
+        
+        // If we found mentions, format the output
+        if (extractedMentions.length > 0) {
+          // Get plain text without the mentions for clean insertion
+          const plainText = editorElement.textContent || '';
+          
+          // Create a result with the mentions appended
+          let result = plainText;
+          
+          // Append each mention in our standard format
+          extractedMentions.forEach(mention => {
+            const mentionTag = `@[${mention.text}](${mention.id})`;
+            if (!result.includes(mentionTag)) {
+          result = result.trim() + ' ' + mentionTag + ' ';
       }
     });
     
-    console.log("Enhanced output with mentions:", result);
+          console.log("Extracted mentions from Lexical state:", extractedMentions);
     return result;
+        }
+      } catch (error) {
+        console.error("Error parsing Lexical state:", error);
+      }
+    }
+    
+    // Fallback to plain text if not a valid serialized state
+    console.log("Using plain text (no mentions found):", plainTextValue);
+    return plainTextValue;
   };
 
   // Markdown editing function
