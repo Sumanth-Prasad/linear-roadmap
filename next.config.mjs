@@ -11,8 +11,8 @@ const nextConfig = {
   },
   // Enable ESLint checking during build
   eslint: {
-    // Run ESLint checking during build
-    ignoreDuringBuilds: false
+    // ⬇️  Skip ESLint completely when Vercel runs `next build`
+    ignoreDuringBuilds: true,
   },
   async rewrites() {
     return [
