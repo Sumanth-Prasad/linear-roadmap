@@ -829,8 +829,49 @@ function InitialContentPlugin({ initialValue, isMarkdown }: { initialValue: stri
       return;
     }
 
+    // Serialize current editor content to compare with incoming initialValue.
+    const currentSerialized = editor.getEditorState().read(() => {
+      const traverse = (node: any): string => {
+        if (node.getType) {
+          const t = node.getType();
+          if (t === "mention") {
+            const id = (node as any).__id ?? "";
+            const label = (node as any).__label ?? id;
+            return `@[${label}](${id})`;
+          }
+          if (t === "beautifulMention") {
+            const value = (node as any).getValue?.() ?? "";
+            const data = (node as any).getData?.() ?? {};
+            const id = data.id ?? value;
+            return `@[${value}](${id})`;
+          }
+        }
+        if ($isTextNode(node)) {
+          return node.getTextContent();
+        }
+        let res = "";
+        const children = node.getChildren?.();
+        if (children && Array.isArray(children)) {
+          children.forEach((c: any) => { res += traverse(c); });
+        }
+        if ($isParagraphNode(node)) {
+          res += "\n";
+        }
+        return res;
+      };
+      let text = traverse($getRoot()).trim();
+      text = text.replace(/\n\s*\n/g, "\n");
+      return text;
+    });
+
+    if (currentSerialized === initialValue.trim()) {
+      // No change needed; keep current state to preserve cursor.
+      return;
+    }
+
     // Proceed to update editor state if initialValue is different
     if (initialValue && initialValue.trim() !== '') {
+      // Build a fresh document by directly updating the editor
       editor.update(() => {
         const root = $getRoot();
         root.clear(); 
@@ -859,9 +900,9 @@ function InitialContentPlugin({ initialValue, isMarkdown }: { initialValue: stri
             root.append(paragraph);
         } else {
             // Ensure editor isn't totally blank if value was just whitespace or empty after parsing
-            root.append($createParagraphNode().append($createTextNode(''))); // Ensure a text node exists
+            root.append($createParagraphNode().append($createTextNode('')));
         }
-      });
+      }, { tag: 'load-initial' });
     } else {
       // Value is empty or only whitespace, ensure editor is empty with a paragraph
       editor.update(() => {
