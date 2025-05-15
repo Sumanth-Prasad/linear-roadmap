@@ -101,15 +101,18 @@ export function FormSubmitDialog({
       const raw = localStorage.getItem("savedForms");
       if (raw) {
         const parsed: SavedForm[] = JSON.parse(raw);
-        setForms(parsed);
-        if (parsed.length) {
-          setSelectedId(parsed[0].id);
+        const filtered = projectId
+          ? parsed.filter(f => f.linearSettings?.project === projectId)
+          : parsed;
+        setForms(filtered);
+        if (filtered.length) {
+          setSelectedId(filtered[0].id);
         }
       }
     } catch (e) {
       console.error("Failed to parse savedForms", e);
     }
-  }, []);
+  }, [projectId]);
 
   if (!forms.length) {
     return (

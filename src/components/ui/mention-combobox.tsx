@@ -75,9 +75,11 @@ export function MentionCombobox({
         case 'radio':
           groups['Selection Fields'].push(field);
           break;
-        case 'email':
         case 'phone':
         case 'url':
+          groups['Text Fields'].push(field);
+          break;
+        case 'email':
           groups['Contact Fields'].push(field);
           break;
         case 'file':

@@ -138,15 +138,27 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
 
     const client = getLinearClient();
 
-    // Build title using template if provided
-    const rawSubmittedTitle = fieldEntries['title'] || Object.values(fieldEntries)[0] || 'New request';
-    const template = (linearSettings?.defaultTitle as string | undefined);
-    const title = template ? template.replace('{title}', rawSubmittedTitle) : rawSubmittedTitle;
+    // Helper to replace mention tokens like @[label](id) with the submitted field values.
+    const replaceMentionTokens = (str: string): string => {
+      if (!str) return str;
+      return str.replace(/@\[[^\]]+\]\(([^)]+)\)/g, (_match, id: string) => {
+        return fieldEntries[id] ?? '';
+      });
+    };
 
-    // Base description from responseMessage if provided
+    const rawSubmittedTitle = fieldEntries['title'] || Object.values(fieldEntries)[0] || 'New request';
+
+    // Use defaultTitle template if provided; otherwise fallback to rawSubmittedTitle.
+    let titleTemplate: string = linearSettings?.defaultTitle ?? rawSubmittedTitle;
+    // First, replace mention tokens in the template.
+    titleTemplate = replaceMentionTokens(titleTemplate);
+    // Also support {title} placeholder in template (legacy behaviour).
+    const title = titleTemplate.replace('{title}', rawSubmittedTitle);
+
+    // Build description starting from responseMessage (if any).
     let description = '';
-    if(linearSettings?.responseMessage){
-      description += linearSettings.responseMessage.replace('{title}', rawSubmittedTitle) + '\n\n';
+    if (linearSettings?.responseMessage) {
+      description += replaceMentionTokens(linearSettings.responseMessage).replace('{title}', rawSubmittedTitle) + '\n\n';
     }
 
     description += `Submitted via website form (formId: ${formId}).\n\n`;
@@ -173,13 +185,17 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
     }
 
     if (linearSettings?.issueType === 'customer_request') {
-      // override title & description per requirements
-      const crTitle = rawSubmittedTitle;
-      const crDesc = linearSettings?.responseMessage ? linearSettings.responseMessage.replace('{title}', rawSubmittedTitle) : '';
+      // Build title and description similarly for customer requests.
+      const crTitleTemplate: string = linearSettings?.defaultTitle ?? rawSubmittedTitle;
+      const crTitle = replaceMentionTokens(crTitleTemplate).replace('{title}', rawSubmittedTitle);
+
+      const crDescBase = linearSettings?.responseMessage ?? '';
+      const crDesc = replaceMentionTokens(crDescBase).replace('{title}', rawSubmittedTitle);
       const issueInput: Record<string, any> = { teamId, title: crTitle, description: '' };
       if (projectId && projectId !== 'undefined') issueInput.projectId = projectId;
       if(priorityVal!==undefined) issueInput.priority = priorityVal;
       if(labelIds?.length) issueInput.labelIds = labelIds;
+      if (linearSettings.assignee) issueInput.assigneeId = linearSettings.assignee;
       const mutation = `mutation IssueCreate($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id } } }`;
       const res: any = await client.client.rawRequest(mutation, { input: issueInput });
       const issueCreate = res?.data?.issueCreate;
@@ -199,6 +215,7 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
       if (projectId && projectId !== 'undefined') input.projectId = projectId;
       if(priorityVal!==undefined) input.priority = priorityVal;
       if(labelIds?.length) input.labelIds = labelIds;
+      if (linearSettings.assignee) input.assigneeId = linearSettings.assignee;
       const mutation = `mutation IssueCreate($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id } } }`;
       const res: any = await client.client.rawRequest(mutation, { input });
       const issueCreate = res?.data?.issueCreate;

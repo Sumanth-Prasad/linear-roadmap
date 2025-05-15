@@ -46,9 +46,12 @@ function TeamBoardCard({ teamId }: { teamId: string }) {
       <p className="mb-4 text-muted-foreground text-center max-w-xs">
         View all issues for this team across every project.
       </p>
-      <Link href={`/board?team_id=${teamId}`}>
-        <Button>Open Issue Board</Button>
-      </Link>
+      <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-center">
+        <Link href={`/board?team_id=${teamId}`}>
+          <Button className="w-full sm:w-auto">Open Issue Board</Button>
+        </Link>
+        <FormSubmitDialog teamId={teamId} triggerText="Submit Request" variant="outline" />
+      </div>
     </Card>
   );
 }

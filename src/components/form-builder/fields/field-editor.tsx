@@ -255,7 +255,7 @@ export function FieldEditor({
         </div>
         
         {/* Remove button for custom fields */}
-        {field.id !== "title" && field.id !== "description" && (
+        {field.id !== "title" && (
           <button 
             onClick={() => onRemoveField(field.id)}
             className="mt-4 px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"

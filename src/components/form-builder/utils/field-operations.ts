@@ -1,12 +1,12 @@
-import type { FormField } from "./types";
+import type { FormField } from "../core/types";
 
 // Remove a field by id
 export function removeField(fields: FormField[], id: string, activeField: string | null): {
   updatedFields: FormField[];
   newActiveField: string | null;
 } {
-  // Don't allow removing title and description
-  if (id === "title" || id === "description") {
+  // Don't allow removing the fixed title field
+  if (id === "title") {
     return { updatedFields: fields, newActiveField: activeField };
   }
   
