@@ -25,7 +25,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ menuItems, activeSection, onSelect }: AppSidebarProps) {
   return (
-    <Sidebar className="border-r border-sidebar-border bg-sidebar min-w-[220px] w-[220px] h-[calc(100vh-3.5rem)] mt-[3.5rem] fixed left-0 top-0">
+    <Sidebar className="border-r border-sidebar-border bg-sidebar md:min-w-64 md:w-64 md:h-[calc(100vh-3.5rem)] md:mt-[3.5rem] md:fixed md:left-0 md:top-0">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>

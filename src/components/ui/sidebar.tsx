@@ -164,6 +164,27 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const [isDarkMode, setIsDarkMode] = React.useState(false)
+  
+  // Check if dark mode is active and update state when it changes
+  React.useEffect(() => {
+    const checkDarkMode = () => {
+      const isDark = document.documentElement.classList.contains('dark')
+      setIsDarkMode(isDark)
+    }
+    
+    // Initial check
+    checkDarkMode()
+    
+    // Setup mutation observer to watch for theme changes
+    const observer = new MutationObserver(checkDarkMode)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+    
+    return () => observer.disconnect()
+  }, [])
 
   if (collapsible === "none") {
     return (
@@ -187,19 +208,45 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
+          className="w-[var(--sidebar-width-mobile)] p-0 z-[120] top-14 h-[calc(100vh-3.5rem)] border-r overflow-y-auto" 
+          style={{
+            "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
+            backgroundColor: isDarkMode ? "#1e1e1e" : "white",
+            color: isDarkMode ? "white" : "black",
+          } as React.CSSProperties}
           side={side}
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          {/* Dynamic background based on theme */}
+          <div className="absolute inset-0 opacity-100" 
+               style={{ backgroundColor: isDarkMode ? "#1e1e1e" : "white" }} />
+          <div className="relative z-10" 
+               style={{ color: isDarkMode ? "white" : "black" }}>
+            <SheetHeader className="sr-only">
+              <SheetTitle>Sidebar</SheetTitle>
+              <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            </SheetHeader>
+            
+            {/* Close button visible on mobile */}
+            <button 
+              onClick={() => setOpenMobile(false)}
+              className="absolute top-3 right-3 z-50 p-2 rounded-md"
+              style={{ 
+                backgroundColor: isDarkMode ? "#374151" : "#f3f4f6", 
+                color: isDarkMode ? "white" : "black" 
+              }}
+              aria-label="Close sidebar"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            
+            <div className="flex h-full w-full flex-col pt-10" 
+                 style={{ color: isDarkMode ? "white" : "black" }}>
+              {children}
+            </div>
+          </div>
         </SheetContent>
       </Sheet>
     )

@@ -93,21 +93,23 @@ function SettingsPageInner() {
         />
 
         {/* Main Content */}
-        <main className="ml-[220px] pt-4 bg-background min-h-screen w-[calc(100vw-220px)] pb-6">
+        <main className="bg-background min-h-screen pb-6 w-full mt-[3.5rem] md:ml-64 md:w-[calc(100vw-17rem)] overflow-hidden">
           {/* Trigger only visible on small screens */}
           <div className="p-1 md:hidden">
             <SidebarTrigger size="icon" variant="ghost" />
           </div>
 
-          <div className="w-full max-w-[1440px] mx-auto px-2 mt-2">
-            <div className="bg-background rounded-lg shadow-md p-3 md:p-5 border border-border">
+          <div className="w-full mx-auto mt-2 overflow-hidden">
+            <div className="bg-background rounded-lg shadow-md p-3 md:p-5 border border-border max-w-[850px] mx-auto overflow-hidden">
               {activeSection === "form" && (
-                <section id="form-section" className="w-full">
+                <section id="form-section" className="w-full overflow-hidden">
                   <h2 className="text-lg font-semibold mb-2">Feature Request Form Builder</h2>
                   <p className="text-sm text-muted-foreground mb-2">
                     Design and customize the feature request form that customers will see.
                   </p>
-                  <FormBuilder />
+                  <div className="max-w-[800px] mx-auto">
+                    <FormBuilder />
+                  </div>
                 </section>
               )}
 
