@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { FormBuilder } from "@/components/form-builder/form-builder";
 import type { SavedForm } from "@/components/form-builder/core/types";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 
-export default function SettingsPage() {
+function SettingsPageInner() {
   const [activeSection, setActiveSection] = useState("form");
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -168,5 +168,13 @@ export default function SettingsPage() {
         </main>
       </div>
     </SidebarProvider>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsPageInner />
+    </Suspense>
   );
 } 
