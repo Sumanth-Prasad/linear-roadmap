@@ -7,7 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SavedForm, FormField } from "@/components/form-builder/core/types";
 import { submitFormIssue } from "@/app/actions";
 import { ArrowLeft } from "lucide-react";
-import { getCountryCallingCode } from 'react-phone-number-input/input';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
+import { isValidPhoneNumber } from 'react-phone-number-input';
 
 interface FormSubmitDialogProps {
   teamId: string;
@@ -15,6 +17,26 @@ interface FormSubmitDialogProps {
   triggerText?: string;
   variant?: "default" | "outline" | "secondary";
   size?: "default" | "sm" | "lg" | "icon";
+}
+
+// Dedicated phone field component to allow country selection and proper formatting
+function PhoneField({ field, common }: { field: FormField; common: any }) {
+  const [value, setValue] = useState<string | undefined>();
+
+  return (
+    <div className="mb-4">
+      <PhoneInput
+        {...common}
+        international
+        defaultCountry={field.countryCode || 'US'}
+        value={value}
+        onChange={setValue}
+        smartCaret
+        error={value ? (isValidPhoneNumber(value) ? undefined : 'Invalid phone number') : undefined}
+        className="PhoneInput--full-width"
+      />
+    </div>
+  );
 }
 
 // Helper to render input for a form field with solid background
@@ -54,29 +76,7 @@ function renderFieldInput(field: FormField) {
         </div>
       );
     case "phone": {
-      const countryCode = field.countryCode || "US";
-      let callingCode;
-      try {
-        callingCode = getCountryCallingCode(countryCode as any);
-      } catch {
-        callingCode = "1";
-      }
-      return (
-        <div className="flex">
-          <div className="bg-muted px-3 py-2 border border-r-0 border-border rounded-l text-sm text-muted-foreground flex items-center gap-1">
-            <img
-              src={`https://flagcdn.com/16x12/${String(countryCode).toLowerCase()}.png`}
-              srcSet={`https://flagcdn.com/32x24/${String(countryCode).toLowerCase()}.png 2x, https://flagcdn.com/48x36/${String(countryCode).toLowerCase()}.png 3x`}
-              width="16"
-              height="12"
-              alt={countryCode as string}
-              className="inline-block object-cover"
-            />
-            <span>+{callingCode}</span>
-          </div>
-          <input type="tel" {...common} className="flex-1 border border-border rounded-r px-3 py-2 bg-input text-foreground" />
-        </div>
-      );
+      return <PhoneField field={field} common={common} />;
     }
     default:
       return <input type={field.type === "email" ? "email" : "text"} {...common} />;

@@ -971,3 +971,20 @@ div.h-full.w-px.bg-card,
   padding: 0 !important;
 }
 
+/* PhoneInput custom styles */
+.PhoneInput--full-width input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background-color: var(--input);
+  color: var(--foreground);
+}
+
+.PhoneInput--full-width .PhoneInputCountrySelect {
+  background-color: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  margin-right: 0.5rem;
+}
+

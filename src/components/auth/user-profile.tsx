@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { signOut, useSession } from "next-auth/react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,44 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logoutClient } from "@/lib/auth";
-import { logout } from "@/lib/auth-actions";
 
-interface User {
-  name: string;
-  email: string;
-  id: string;
-}
+export function UserProfile() {
+  const { data: session, status } = useSession();
 
-interface UserProfileProps {
-  initialUser?: User;
-}
+  if (status !== "authenticated" || !session?.user) return null;
 
-export function UserProfile({ initialUser }: UserProfileProps) {
-  const [user, setUser] = useState<User | null>(initialUser || null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleLogout = async () => {
-    setIsLoading(true);
-    try {
-      // Try to logout on the server
-      try {
-        await logout();
-      } catch (err) {
-        console.error("Error logging out on server:", err);
-        // Continue anyway since we have client-side storage
-      }
-
-      // Always remove from localStorage
-      logoutClient();
-      
-      window.location.reload();
-    } catch (error) {
-      console.error("Error logging out:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const user = session.user;
 
   // Generate initials from name
   const getInitials = (name: string) => {
@@ -60,14 +29,12 @@ export function UserProfile({ initialUser }: UserProfileProps) {
       .toUpperCase();
   };
 
-  if (!user) return null;
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+            <AvatarFallback>{getInitials(user.name || "")}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -81,12 +48,8 @@ export function UserProfile({ initialUser }: UserProfileProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={handleLogout}
-          disabled={isLoading}
-          className="cursor-pointer"
-        >
-          {isLoading ? "Logging out..." : "Log out"}
+        <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer">
+          Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -26,7 +26,12 @@ const nextConfig = {
         destination: "/roadmap/:path*",
       },
     ];
-  }
+  },
+  experimental: {
+    // other experimental options can stay here
+  },
+  // Allow importing packages that are not ESM-ready from the server runtime
+  serverExternalPackages: ['nodemailer'],
 };
 
 export default nextConfig; 
