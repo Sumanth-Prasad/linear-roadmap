@@ -17,6 +17,7 @@ import { updateField, removeField as removeFieldOp, addOption, removeOption, upd
 import type { FieldType, FormField, FieldMention, MentionMenuState, LinearIntegrationSettings, FormSettings, FormType, SavedForm } from "./types";
 import { LexicalBadgeEditor } from "@/components/LexicalBadgeEditor";
 import { useSearchParams } from 'next/navigation';
+import { createForm, updateForm } from "@/lib/form-service";
 
 // Add the global declaration for our helper methods
 declare global {
@@ -160,7 +161,7 @@ export default function FormBuilder() {
   };
   
   // Save the form
-  const handleSaveForm = () => {
+  const handleSaveForm = async () => {
     // Basic validation: ensure a title and at least one field exists
     if (!formSettings.title.trim()) {
       alert('Form title is required.');
@@ -172,48 +173,29 @@ export default function FormBuilder() {
     }
 
     try {
-      const now = Date.now();
-      const storedRaw = localStorage.getItem('savedForms') || '[]';
-      const savedForms: SavedForm[] = JSON.parse(storedRaw);
-
+      // Prepare form data
+      const formData = {
+        title: formSettings.title,
+        description: formSettings.description,
+        teamId: linearSettings.team,
+        projectId: linearSettings.project,
+        fields: fields,
+        settings: formSettings,
+        linearSettings: linearSettings
+      };
+      
+      let savedForm;
+      
       if (formId) {
-        // Update existing
-        const idx = savedForms.findIndex(f => f.id === formId);
-        if (idx !== -1) {
-          savedForms[idx] = {
-            ...savedForms[idx],
-            formSettings,
-            fields,
-            linearSettings,
-            updatedAt: now,
-          };
-        } else {
-          // Not found, treat as new
-          savedForms.push({
-            id: formId,
-            formSettings,
-            fields,
-            linearSettings,
-            createdAt: now,
-            updatedAt: now,
-          });
-        }
+        // Update existing form
+        savedForm = await updateForm(formId, formData);
       } else {
         // Create new form
-        const newId = now.toString();
-        setFormId(newId);
-        savedForms.push({
-          id: newId,
-          formSettings,
-          fields,
-          linearSettings,
-          createdAt: now,
-          updatedAt: now,
-        });
+        savedForm = await createForm(formData);
+        setFormId(savedForm.id);
       }
-
-      localStorage.setItem('savedForms', JSON.stringify(savedForms));
-      alert('Form saved locally!');
+      
+      alert('Form saved to database!');
     } catch (err) {
       console.error('Error saving form', err);
       alert('Failed to save form. See console for details.');

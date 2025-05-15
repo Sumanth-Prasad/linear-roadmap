@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { upsertCustomer } from "@/lib/linear-customer";
+import { createFormSubmission } from "@/lib/form-service";
 
 // Server action to create a comment
 export async function createComment(formData: FormData): Promise<void> {
@@ -187,6 +188,14 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
       }catch{}
     }
 
+    // Prepare submission metadata
+    const metadata = {
+      submittedAt: new Date().toISOString(),
+      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'Server',
+    };
+
+    let issueId: string | undefined;
+
     if (linearSettings?.issueType === 'customer_request') {
       // ===== Determine customer identity =====
       const session = await getServerSession(authOptions);
@@ -249,7 +258,7 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
       const needMutation = `mutation CustomerNeedCreate($input: CustomerNeedCreateInput!) { customerNeedCreate(input: $input) { success } }`;
       await client.client.rawRequest(needMutation, { input: needInput });
 
-      return { success: true, issueId: issueCreate.issue.id };
+      issueId = issueCreate.issue.id;
     } else {
       const input: Record<string, any> = { teamId, title, description };
       if (projectId && projectId !== 'undefined') input.projectId = projectId;
@@ -260,8 +269,24 @@ export async function submitFormIssue(formData: FormData): Promise<{ success: bo
       const res: any = await client.client.rawRequest(mutation, { input });
       const issueCreate = res?.data?.issueCreate;
       if (!issueCreate?.success) throw new Error('Linear issue creation failed');
-      return { success: true, issueId: issueCreate.issue.id };
+      issueId = issueCreate.issue.id;
     }
+
+    // Save submission to database if we have a formId
+    if (formId) {
+      try {
+        await createFormSubmission(formId, {
+          data: fieldEntries,
+          metadata,
+          linearIssueId: issueId
+        });
+      } catch (error) {
+        console.error("Failed to save form submission to database:", error);
+        // Continue even if db save fails - we already created the Linear issue
+      }
+    }
+
+    return { success: true, issueId };
   } catch (error: any) {
     console.error("submitFormIssue error", error);
     return { success: false, error: error?.message || String(error) };

@@ -16,6 +16,7 @@ model User {
   password       String?  // hashed password
   accounts       Account[]
   sessions       Session[]
+  forms          Form[]
   @@map("users")
 }
 
@@ -57,4 +58,36 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// Form Builder Models
+model Form {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  publishedAt     DateTime?
+  userId          String
+  teamId          String?
+  projectId       String?
+  fields          Json      // Array of field configurations
+  settings        Json?     // Form settings like submission behavior
+  linearSettings  Json?     // Linear integration settings
+  submissions     FormSubmission[]
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("forms")
+}
+
+model FormSubmission {
+  id              String    @id @default(cuid())
+  formId          String
+  data            Json      // Submitted form data
+  metadata        Json?     // Browser info, timestamps, etc.
+  createdAt       DateTime  @default(now())
+  linearIssueId   String?   // ID of created Linear issue if applicable
+  form            Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  @@map("form_submissions")
 } 
