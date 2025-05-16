@@ -612,20 +612,38 @@ export default function FormBuilder() {
   useEffect(() => {
     if (!initialFormId) return;
 
-    try {
-      const savedRaw = localStorage.getItem('savedForms');
-      if (!savedRaw) return;
+    const loadForm = async () => {
+      try {
+        // Try localStorage first (legacy)
+        const savedRaw = localStorage.getItem('savedForms');
+        if (savedRaw) {
+          const savedForms: SavedForm[] = JSON.parse(savedRaw);
+          const existing = savedForms.find((f) => f.id === initialFormId);
+          if (existing) {
+            setFields(existing.fields);
+            setFormSettings(existing.formSettings);
+            setLinearSettings(existing.linearSettings);
+            return;
+          }
+        }
 
-      const savedForms: SavedForm[] = JSON.parse(savedRaw);
-      const existing = savedForms.find((f) => f.id === initialFormId);
-      if (existing) {
-        setFields(existing.fields);
-        setFormSettings(existing.formSettings);
-        setLinearSettings(existing.linearSettings);
+        // Fallback to DB via API route
+        const res = await fetch(`/api/forms/${initialFormId}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            const form = json.data;
+            setFields(form.fields || []);
+            setFormSettings(form.settings || {});
+            setLinearSettings(form.linearSettings || {});
+          }
+        }
+      } catch (err) {
+        console.error('Error loading form', err);
       }
-    } catch (err) {
-      console.error('Error loading saved form', err);
-    }
+    };
+
+    loadForm();
   }, [initialFormId]);
 
   // Disabled automatic title format update; users can input their own.

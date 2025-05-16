@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { SavedForm } from "@/components/form-builder/core/types";
 
 export default function SavedFormsPage() {
   const [forms, setForms] = useState<any[]>([]);

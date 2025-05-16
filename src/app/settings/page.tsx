@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, Suspense } from "react";
 import { FormBuilder } from "@/components/form-builder/form-builder";
-import type { SavedForm } from "@/components/form-builder/core/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -14,32 +13,32 @@ function SettingsPageInner() {
   const router = useRouter();
   const formId = searchParams.get('formId');
 
-  // Saved forms state
-  const [savedForms, setSavedForms] = useState<SavedForm[]>([]);
+  // Saved forms state (database-backed)
+  const [savedForms, setSavedForms] = useState<any[]>([]);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load saved forms once on mount
+  const fetchForms = async () => {
+    try {
+      setLoadingForms(true);
+      const res = await fetch("/api/forms", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+      setSavedForms(json.data ?? []);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching forms", err);
+      setError("Failed to load forms");
+    } finally {
+      setLoadingForms(false);
+    }
+  };
+
+  // Load once on mount and when tab gains focus (for updates)
   useEffect(() => {
-    const loadSavedForms = () => {
-      try {
-        const raw = localStorage.getItem("savedForms");
-        if (raw) {
-          setSavedForms(JSON.parse(raw));
-        }
-      } catch (err) {
-        console.error("Failed to load saved forms", err);
-      }
-    };
-
-    // Initial load
-    loadSavedForms();
-
-    // Add focus event listener to refresh form list when the tab regains focus
-    // This catches cases where the user saved a form in the builder tab
-    window.addEventListener("focus", loadSavedForms);
-    
-    return () => {
-      window.removeEventListener("focus", loadSavedForms);
-    };
+    fetchForms();
+    window.addEventListener("focus", fetchForms);
+    return () => window.removeEventListener("focus", fetchForms);
   }, []);
 
   // Switch to form view when formId is present in URL
@@ -49,24 +48,22 @@ function SettingsPageInner() {
     }
   }, [formId]);
 
-  // Refresh forms list when switching to the saved forms tab
+  // Refresh from DB when switching to tab
   useEffect(() => {
     if (activeSection === "savedForms") {
-      try {
-        const raw = localStorage.getItem("savedForms");
-        if (raw) {
-          setSavedForms(JSON.parse(raw));
-        }
-      } catch (err) {
-        console.error("Failed to refresh forms", err);
-      }
+      fetchForms();
     }
   }, [activeSection]);
 
-  const handleDeleteForm = (id: string) => {
-    const updated = savedForms.filter((f) => f.id !== id);
-    setSavedForms(updated);
-    localStorage.setItem("savedForms", JSON.stringify(updated));
+  const handleDeleteForm = async (id: string) => {
+    if (!confirm("Delete this form?")) return;
+    try {
+      await fetch(`/api/forms/${id}`, { method: "DELETE" });
+      fetchForms();
+    } catch (err) {
+      console.error("Failed to delete", err);
+      alert("Failed to delete form");
+    }
   };
 
   const handleEditForm = (id: string) => {
@@ -120,35 +117,26 @@ function SettingsPageInner() {
                     View, edit or delete your previously saved forms.
                   </p>
                   <div className="mb-4">
-                    <Button 
-                      onClick={() => {
-                        try {
-                          const raw = localStorage.getItem("savedForms");
-                          if (raw) {
-                            setSavedForms(JSON.parse(raw));
-                          }
-                        } catch (err) {
-                          console.error("Failed to refresh forms", err);
-                        }
-                      }}
-                      variant="outline"
-                      size="sm"
-                    >
+                    <Button onClick={fetchForms} variant="outline" size="sm">
                       Refresh Forms
                     </Button>
                   </div>
-                  {savedForms.length === 0 ? (
-                    <p className="text-muted-foreground">No forms saved yet.</p>
+                  {loadingForms ? (
+                    <p className="text-muted-foreground">Loading forms...</p>
+                  ) : error ? (
+                    <p className="text-destructive text-sm">{error}</p>
+                  ) : savedForms.length === 0 ? (
+                    <p className="text-muted-foreground">No forms found.</p>
                   ) : (
                     <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
                       {savedForms.map((form) => (
                         <Card key={form.id} className="p-4 flex flex-col hover:shadow-md transition-shadow">
                           <h3 className="text-xl font-semibold mb-1">
-                            {form?.formSettings?.title || "Untitled Form"}
+                            {form?.title || form?.formSettings?.title || "Untitled Form"}
                           </h3>
-                          {form?.formSettings?.description && (
+                          {(form?.description || form?.formSettings?.description) && (
                             <p className="text-muted-foreground mb-4 text-sm">
-                              {form?.formSettings?.description}
+                              {form?.description || form?.formSettings?.description}
                             </p>
                           )}
                           <div className="mt-auto flex gap-2">
