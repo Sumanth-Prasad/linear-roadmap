@@ -90,35 +90,62 @@ export function FormSubmitDialog({
   variant = "default",
   size = "default",
 }: FormSubmitDialogProps) {
-  // Client-side only
   const [forms, setForms] = useState<SavedForm[]>([]);
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<'select' | 'fill'>('select');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("savedForms");
-      if (raw) {
-        const parsed: SavedForm[] = JSON.parse(raw);
-        const filtered = projectId
-          ? parsed.filter(f => f.linearSettings?.project === projectId)
-          : parsed;
-        setForms(filtered);
-        if (filtered.length) {
-          setSelectedId(filtered[0].id);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to parse savedForms", e);
-    }
-  }, [projectId]);
+    const fetchForms = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/forms?teamId=${teamId}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed');
+        const json = await res.json();
+        let data = json.data ?? [];
 
-  if (!forms.length) {
+        // Map DB schema to SavedForm-like objects for compatibility
+        data = data.map((f: any) => ({
+          id: f.id,
+          fields: f.fields,
+          linearSettings: f.linearSettings ?? {},
+          formSettings: f.settings ?? f.formSettings ?? {},
+          title: f.title,
+          description: f.description,
+        }));
+
+        // Filter by projectId if provided
+        const filtered = projectId ? data.filter((f: any) => f.linearSettings?.project === projectId) : data;
+
+        setForms(filtered);
+        if (filtered.length) setSelectedId(filtered[0].id);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching forms', err);
+        setError('Unable to load forms');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchForms();
+  }, [teamId, projectId]);
+
+  if (loading) {
     return (
-      <div className="inline-flex items-center px-4 py-2 text-sm text-gray-500 bg-gray-100 border border-dashed border-gray-300 rounded cursor-not-allowed opacity-70">
-        <span>Create Form First</span>
-      </div>
+      <Button variant={variant} size={size} disabled className="opacity-70 my-forced-opaque-button dull-cta-button">
+        Loading...
+      </Button>
+    );
+  }
+
+  if (error || !forms.length) {
+    return (
+      <Button variant={variant} size={size} disabled className="opacity-70 my-forced-opaque-button dull-cta-button">
+        Create Form First
+      </Button>
     );
   }
 
