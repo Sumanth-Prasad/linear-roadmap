@@ -75,9 +75,22 @@ function SettingsPageInner() {
   };
 
   const handleEditForm = (id: string) => {
-    // Programmatically navigate and force the view to change
-    router.push(`/settings?formId=${id}`);
+    // Navigate to builder with specific formId for editing
+    router.push(`/settings?formId=${id}${teamIdParam ? `&teamId=${teamIdParam}` : ''}`);
     setActiveSection("form");
+  };
+
+  // Sidebar selection handler
+  const handleSectionSelect = (sectionId: string) => {
+    if (sectionId === "form") {
+      const currentFormId = searchParams.get("formId");
+      // If no formId in URL we want a fresh builder → drop any stale param
+      if (currentFormId) {
+        const query = teamIdParam ? `?teamId=${teamIdParam}` : "";
+        router.push(`/settings${query}`);
+      }
+    }
+    setActiveSection(sectionId);
   };
 
   // Menu items for the settings sidebar
@@ -94,7 +107,7 @@ function SettingsPageInner() {
         <AppSidebar
           menuItems={menuItems}
           activeSection={activeSection}
-          onSelect={setActiveSection}
+          onSelect={handleSectionSelect}
         />
 
         {/* Main Content */}
@@ -113,7 +126,8 @@ function SettingsPageInner() {
                     Design and customize the feature request form that customers will see.
                   </p>
                   <div className="max-w-[800px] mx-auto">
-                    <FormBuilder />
+                    {/* Force remount when formId changes to avoid stale state */}
+                    <FormBuilder key={formId || 'new'} />
                   </div>
                 </section>
               )}

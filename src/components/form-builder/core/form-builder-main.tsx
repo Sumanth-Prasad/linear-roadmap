@@ -80,6 +80,11 @@ export default function FormBuilder() {
   const initialFormId = searchParams.get('formId');
   const [formId, setFormId] = useState<string | null>(initialFormId);
   
+  // Keep formId in sync with URL changes (e.g. when selecting a form to edit or clearing it)
+  useEffect(() => {
+    setFormId(initialFormId);
+  }, [initialFormId]);
+  
   // Mention system state
   const [mentionMenu, setMentionMenu] = useState<MentionMenuState>({
     isOpen: false,
