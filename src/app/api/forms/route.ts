@@ -4,8 +4,7 @@ import { getUserForms } from '@/lib/form-service';
 // GET /api/forms
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const teamId = searchParams.get('teamId');
+    const teamId = req.nextUrl.searchParams.get('teamId');
     const forms = await getUserForms(teamId);
     return NextResponse.json({ data: forms });
   } catch (error) {
