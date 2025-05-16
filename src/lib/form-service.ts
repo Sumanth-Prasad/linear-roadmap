@@ -14,9 +14,9 @@ export async function createForm(formData: any) {
     userId: formData.userId ?? null,
     teamId: formData.teamId ?? null,
     projectId: formData.projectId ?? null,
-    fields: formData.fields ?? [],
-    settings: formData.settings ?? {},
-    linearSettings: formData.linearSettings ?? {},
+    fields: toJson(formData.fields ?? []),
+    settings: toJson(formData.settings ?? {}),
+    linearSettings: toJson(formData.linearSettings ?? {}),
   };
 
   const form = await prisma.form.create({ data });
@@ -58,9 +58,9 @@ export async function updateForm(id: string, formData: any) {
       description: formData.description,
       teamId: formData.teamId || null,
       projectId: formData.projectId || null,
-      fields: formData.fields,
-      settings: formData.settings,
-      linearSettings: formData.linearSettings,
+      fields: toJson(formData.fields),
+      settings: toJson(formData.settings),
+      linearSettings: toJson(formData.linearSettings),
       updatedAt: new Date(),
     },
   });
@@ -105,4 +105,7 @@ export async function getFormSubmissions(formId: string) {
     where: { formId },
     orderBy: { createdAt: "desc" },
   });
-} 
+}
+
+// Ensure arbitrary objects contain only JSON-serialisable data
+const toJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)); 
