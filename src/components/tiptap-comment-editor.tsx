@@ -44,25 +44,50 @@ const editorStyles = `
     padding: 0.75rem;
     outline: none;
     overflow-y: auto;
+    color: var(--foreground);
+    background-color: transparent;
   }
   .ProseMirror p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     float: left;
-    color: #adb5bd;
+    color: hsl(var(--muted-foreground));
     pointer-events: none;
     height: 0;
   }
   .ProseMirror img {
     max-width: 100%;
     height: auto;
-    display: block; /* or inline-block if preferred */
+    display: block;
     margin-top: 0.5em;
     margin-bottom: 0.5em;
     border-radius: 4px;
   }
   .ProseMirror a {
-    color: #5c9be4;
+    color: hsl(var(--primary));
     text-decoration: underline;
+  }
+  .ProseMirror h1, .ProseMirror h2, .ProseMirror h3 {
+    color: var(--foreground);
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+  }
+  .ProseMirror code {
+    background-color: hsl(var(--muted) / 0.6);
+    border-radius: 0.2rem;
+    padding: 0.1rem 0.2rem;
+  }
+  .ProseMirror pre {
+    background-color: hsl(var(--muted) / 0.6);
+    border-radius: 0.2rem;
+    padding: 0.5rem;
+    margin: 0.5rem 0;
+  }
+  .ProseMirror blockquote {
+    border-left: 3px solid hsl(var(--primary) / 0.2);
+    padding-left: 1rem;
+    margin: 0.5rem 0;
+    color: hsl(var(--muted-foreground));
   }
 `;
 

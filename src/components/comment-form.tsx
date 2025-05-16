@@ -144,16 +144,16 @@ export function CommentForm({ issueId }: CommentFormProps) {
       onDrop={handleDrop}
       onPaste={handlePaste}
     >
-      <p className="text-xs text-gray-400 mb-1">
+      <p className="text-xs text-muted-foreground mb-1">
         You can <strong>drag & drop</strong> images/files or <strong>paste</strong> screenshots directly. Markdown is supported. Attachments will be uploaded and embedded automatically.
       </p>
 
-      <div className="border border-[#333] rounded-md overflow-hidden bg-[#0c0c0c]">
+      <div className="border border-border rounded-md overflow-hidden bg-card">
         <TipTapCommentEditor
           value={comment}
           onChange={setComment}
           placeholder="Write a comment... Add images via paste or drag & drop."
-          className="text-white"
+          className="text-foreground"
           minHeight="120px"
         />
       </div>
@@ -172,7 +172,7 @@ export function CommentForm({ issueId }: CommentFormProps) {
       <div className="flex justify-end">
         <Button 
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 h-auto"
+          className="px-4 py-2 h-auto"
           disabled={isSubmitting}
         >
           {isSubmitting ? "Processing..." : "Add Comment"}
