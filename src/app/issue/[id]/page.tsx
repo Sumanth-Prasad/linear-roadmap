@@ -12,7 +12,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { CommentForm } from "@/components/comment-form";
-import { updateIssue, deleteIssueAndRedirect } from "@/app/actions";
+import { updateIssue, updateIssueAndRedirect, deleteIssueAndRedirect } from "@/app/actions";
 
 // Define params type for this specific route
 type IssueParams = {
@@ -153,11 +153,11 @@ export default async function IssueDetailsPage({
     return (
       <main className="p-8 max-w-4xl mx-auto">
         <div className="flex items-center justify-center h-[50vh]">
-          <Card className="p-8 text-center bg-[#1a1a1a] border-[#333]">
-            <h2 className="text-xl font-bold mb-4 text-white">Issue Not Found</h2>
-            <p className="text-gray-400 mb-6">This issue may have been deleted or you don&apos;t have permission to view it.</p>
+          <Card className="p-8 text-center">
+            <h2 className="text-xl font-bold mb-4">Issue Not Found</h2>
+            <p className="text-muted-foreground mb-6">This issue may have been deleted or you don&apos;t have permission to view it.</p>
             <Link href="/roadmap">
-              <Button variant="default" className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button variant="default">
                 Return to Roadmap
               </Button>
             </Link>
@@ -168,10 +168,10 @@ export default async function IssueDetailsPage({
   }
 
   return (
-    <main className="p-4 md:p-8 max-w-4xl mx-auto bg-[#121212]">
-      <div className="mb-6">
-        <Link href="/roadmap" className="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <main className="p-4 md:p-6 max-w-4xl mx-auto bg-background text-foreground">
+      <div className="mb-4 sm:mb-6">
+        <Link href="/roadmap" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1.5 group">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:-translate-x-1">
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
@@ -179,35 +179,34 @@ export default async function IssueDetailsPage({
         </Link>
       </div>
       
-      <Card className="p-5 md:p-6 mb-8 bg-[#1a1a1a] border-[#333] shadow-md overflow-hidden">
+      <Card className="p-4 sm:p-5 md:p-6 mb-6 shadow-md overflow-hidden">
         {isEditMode ? (
-          // EDIT MODE
-          <form action={updateIssue} className="space-y-6 w-full">
+          <form action={updateIssueAndRedirect} className="space-y-5 w-full">
             <input type="hidden" name="issueId" value={issue.id} />
             
-            <div className="space-y-3">
-              <LinearLabel htmlFor="title">Issue Title</LinearLabel>
+            <div>
+              <LinearLabel htmlFor="title" className="mb-1.5 block text-sm">Issue Title</LinearLabel>
               <LinearInput 
                 id="title" 
                 name="title" 
                 defaultValue={issue.title}
                 required
                 placeholder="Issue title"
-                className="text-lg font-medium"
+                className="text-lg sm:text-xl font-semibold"
               />
             </div>
             
-            <div className="space-y-3">
-              <LinearLabel htmlFor="description">Description (Markdown)</LinearLabel>
+            <div>
+              <LinearLabel htmlFor="description" className="mb-1.5 block text-sm">Description (Markdown)</LinearLabel>
               <textarea 
                 id="description" 
                 name="description" 
                 defaultValue={issue.description || ""}
-                className="w-full min-h-[300px] p-4 resize-none bg-[#0c0c0c] text-base text-gray-200 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-0 font-mono rounded-md border border-[#333]"
+                className="w-full min-h-[250px] sm:min-h-[300px] p-3 text-sm bg-muted/30 dark:bg-muted/20 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background font-mono rounded-md border border-border"
                 placeholder="Describe the issue in detail..."
               />
-              <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                 </svg>
@@ -215,39 +214,32 @@ export default async function IssueDetailsPage({
               </div>
             </div>
             
-            <div className="flex justify-end gap-3 pt-4">
-              <Link 
-                href={`/issue/${issue.id}`} 
-                className="px-4 py-2 border border-[#444] rounded-md hover:bg-[#2a2a2a] font-medium bg-[#333] text-white"
-              >
-                Cancel
-              </Link>
-              <Button 
-                type="submit" 
-                className="px-5 py-2 h-auto bg-blue-600 hover:bg-blue-700 text-white"
-              >
+            <div className="flex justify-end gap-2 sm:gap-3 pt-4 border-t border-border">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/issue/${issue.id}`}>Cancel</Link>
+              </Button>
+              <Button type="submit" size="sm" className="px-4">
                 Save Changes
               </Button>
             </div>
           </form>
         ) : (
-          // VIEW MODE
           <>
-            <div className="flex justify-between items-start mb-5">
-              <h1 className="text-2xl font-bold text-white">{issue.title}</h1>
-              <div className="flex gap-2">
-                <Link href={`/issue/${issue.id}?edit=true`}>
-                  <Button variant="outline" size="sm" className="bg-[#333] text-white border-[#444] hover:bg-[#444] hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3 mb-4">
+              <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight mb-1.5">{issue.title}</h1>
+              <div className="flex gap-2 flex-shrink-0 mt-1 sm:mt-0">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/issue/${issue.id}?edit=true`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                     </svg>
                     Edit
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
                 <form action={deleteIssueAndRedirect.bind(null, issue.id)}>
-                  <Button variant="destructive" size="sm" type="submit" className="bg-red-600 hover:bg-red-700 text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                  <Button variant="destructive" size="sm" type="submit">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
                       <polyline points="3 6 5 6 21 6"></polyline>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       <line x1="10" y1="11" x2="10" y2="17"></line>
@@ -259,13 +251,11 @@ export default async function IssueDetailsPage({
               </div>
             </div>
             
-            <div className="flex flex-wrap gap-2 mb-5">
+            <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
               {issue.state && (
                 <Badge
-                  className="px-2.5 py-1 text-xs font-medium text-white border-0"
-                  style={{
-                    backgroundColor: issue.state.color || '#6b7280'
-                  }}
+                  className="px-2 py-0.5 text-xs font-medium border-0 rounded-full"
+                  style={{ backgroundColor: issue.state.color || 'hsl(var(--muted))' , color: 'white'}}
                 >
                   {issue.state.name}
                 </Badge>
@@ -273,14 +263,14 @@ export default async function IssueDetailsPage({
               
               {issue.priority !== null && issue.priority !== undefined && (
                 <Badge
-                  className="px-2.5 py-1 text-xs font-medium text-white border-0"
+                  className="px-2 py-0.5 text-xs font-medium border-0 text-primary-foreground rounded-full"
                   style={{
                     backgroundColor: 
-                      issue.priority === 1 ? "#ef4444" : // Urgent
-                      issue.priority === 2 ? "#f97316" : // High
-                      issue.priority === 3 ? "#eab308" : // Medium
-                      issue.priority === 4 ? "#6b7280" : // Low
-                      "#d1d5db" // None/default
+                      issue.priority === 1 ? "hsl(var(--destructive))" : 
+                      issue.priority === 2 ? "hsl(var(--orange-500, #f97316))" : 
+                      issue.priority === 3 ? "hsl(var(--yellow-500, #eab308))" : 
+                      issue.priority === 4 ? "hsl(var(--muted))" :
+                      "hsl(var(--stone-400, #a8a29e))"
                   }}
                 >
                   {issue.priority === 1 ? "Urgent" : 
@@ -291,74 +281,82 @@ export default async function IssueDetailsPage({
               )}
               
               {issue.assignee && (
-                <Badge variant="outline" className="px-2.5 py-1 text-xs font-medium bg-[#222] text-white border-[#444]">
+                <Badge variant="secondary" className="px-1.5 py-0.5 text-xs font-medium rounded-full flex items-center">
+                   <Avatar className="h-4 w-4 mr-1.5">
+                    {issue.assignee.avatarUrl ? (
+                      <AvatarImage src={issue.assignee.avatarUrl} alt={issue.assignee.name} />
+                    ) : (
+                      <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                        {issue.assignee.name.charAt(0)}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
                   {issue.assignee.name}
                 </Badge>
               )}
             </div>
             
-            <div className="text-sm text-gray-400 mb-6 flex gap-3">
-              <span>Created {new Date(issue.createdAt).toLocaleDateString()}</span>
-              <span>•</span>
-              <span>Updated {new Date(issue.updatedAt).toLocaleDateString()}</span>
+            <div className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
+              <span>Created: {new Date(issue.createdAt).toLocaleDateString()}</span>
+              <span className="text-muted-foreground/50">•</span>
+              <span>Updated: {new Date(issue.updatedAt).toLocaleDateString()}</span>
             </div>
             
-            <Separator className="mb-6 bg-[#333]" />
+            <Separator className="mb-2 bg-border/70" />
             
             {issue.description ? (
-              <div className="mb-6 p-4 bg-[#222] rounded-md border border-[#333] text-white">
-                <MarkdownRenderer content={issue.description} />
+              <div className="mb-6 pb-2">
+                <MarkdownRenderer content={issue.description} className="text-sm" />
               </div>
             ) : (
-              <div className="text-gray-400 italic mb-6 p-4 bg-[#222] rounded-md border border-dashed border-[#333] text-center">
-                No description provided
+              <div className="text-sm text-muted-foreground italic mb-6 p-5 bg-muted/30 dark:bg-muted/20 rounded-md border border-dashed border-border text-center">
+                No description provided.
               </div>
             )}
             
-            {/* Customer Requests Section */}
             {issue.customerNeeds && issue.customerNeeds.length > 0 && (
-              <div className="mt-8 mb-6">
-                <h2 className="text-xl font-semibold mb-4 text-white flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold mb-3 text-foreground flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                     <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
                     <line x1="12" y1="22.08" x2="12" y2="12"></line>
                   </svg>
-                  Customer Requests ({issue.customerNeeds.length})
+                  Customer Requests 
+                  <Badge variant="secondary" className="text-xs h-5 px-1.5">{issue.customerNeeds.length}</Badge>
                 </h2>
-                
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {issue.customerNeeds.map(request => (
-                    <Card key={request.id} className="overflow-hidden bg-[#1a1a1a] border-[#333] shadow-md">
-                      <div className="flex justify-between items-center p-4 border-b border-[#333] bg-[#222]">
-                        <div className="flex items-center gap-2">
-                          <div className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
-                            {request.customer?.name?.charAt(0) || 'C'}
-                          </div>
+                    <Card key={request.id} className="overflow-hidden shadow-sm">
+                      <div className="flex justify-between items-center p-3 border-b border-border bg-muted/30 dark:bg-muted/20">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar className="h-7 w-7">
+                            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
+                              {request.customer?.name?.charAt(0).toUpperCase() || 'C'}
+                            </AvatarFallback>
+                          </Avatar>
                           <div>
-                            <div className="font-medium text-white">
+                            <div className="font-medium text-sm text-foreground">
                               {request.customer?.name || 'Unknown Customer'}
                               {request.customer?.domains && request.customer.domains.length > 0 && (
-                                <span className="ml-2 text-xs text-blue-400">
-                                  {request.customer.domains[0]}
+                                <span className="ml-1.5 text-xs text-primary/90">
+                                  ({request.customer.domains[0]})
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-400">
-                              {new Date(request.createdAt).toLocaleString()}
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(request.createdAt).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'})}
                             </div>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="p-4 text-white">
+                      <div className="p-3 text-sm">
                         <MarkdownRenderer content={request.body} />
-                        
                         {request.attachment && (
-                          <div className="mt-3 p-2 bg-[#333] rounded border border-[#444] text-sm">
+                          <div className="mt-2 pt-2 border-t border-border">
                             <a href={request.attachment.url} target="_blank" rel="noopener noreferrer" 
-                               className="text-blue-400 hover:text-blue-300 flex items-center gap-2">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                               className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 group">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:translate-y-px">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                 <polyline points="7 10 12 15 17 10"></polyline>
                                 <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -378,57 +376,59 @@ export default async function IssueDetailsPage({
       </Card>
 
       <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-6 text-white">Comments {issue.comments.length > 0 && `(${issue.comments.length})`}</h2>
-        
-      {issue.comments.length > 0 ? (
-          <div className="space-y-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4 text-foreground flex items-center gap-2">
+          Comments 
+          {issue.comments.length > 0 && 
+            <Badge variant="default" className="h-6 min-w-6 px-1 flex justify-center items-center text-sm rounded-full">
+              {issue.comments.length}
+            </Badge>
+          }
+        </h2>
+        {issue.comments.length > 0 ? (
+          <div className="space-y-4 mb-6">
           {issue.comments.map(comment => (
-              <Card key={comment.id} className="overflow-hidden bg-[#1a1a1a] border-[#333] shadow-md">
-                <div className="flex justify-between items-center p-4 border-b border-[#333] bg-[#222]">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
+              <Card key={comment.id} className="overflow-hidden shadow-sm">
+                <div className="flex justify-between items-center p-3 border-b border-border bg-muted/30 dark:bg-muted/20">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar className="h-7 w-7">
                       {comment.user?.avatarUrl ? (
-                        <AvatarImage src={comment.user.avatarUrl} alt={comment.user.name} />
+                        <AvatarImage src={comment.user.avatarUrl} alt={comment.user.name || 'User'} />
                       ) : (
-                        <AvatarFallback className="bg-blue-600 text-white">
-                          {comment.user?.name.charAt(0)}
+                        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
+                          {(comment.user?.name?.charAt(0) || 'U').toUpperCase()}
                         </AvatarFallback>
                       )}
                     </Avatar>
                     <div>
-                      <div className="font-medium text-white">{comment.user?.name}</div>
-                      <div className="text-xs text-gray-400">
-                        {new Date(comment.createdAt).toLocaleString()}
+                      <div className="font-medium text-sm text-foreground">{comment.user?.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(comment.createdAt).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'})}
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                <div className="p-4 text-white">
+                <div className="p-3 text-sm">
                   <MarkdownRenderer content={comment.body} />
               </div>
             </Card>
           ))}
         </div>
       ) : (
-          <Card className="p-8 border border-dashed bg-[#1a1a1a] border-[#333] mb-8 flex items-center justify-center">
-            <div className="text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-gray-500">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              <p className="text-gray-400">No comments yet</p>
-            </div>
+          <Card className="p-6 border border-dashed border-border/70 mb-6 flex flex-col items-center justify-center text-center bg-card min-h-[100px]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-muted-foreground/70">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <p className="text-sm text-muted-foreground">No comments yet. Be the first to share your thoughts!</p>
           </Card>
         )}
         
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="mt-6 pt-5 border-t border-border">
+          <h3 className="text-lg font-semibold mb-3 text-foreground flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
             </svg>
             Add a comment
           </h3>
-          
           <CommentForm issueId={issue.id} />
         </div>
       </div>

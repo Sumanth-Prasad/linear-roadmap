@@ -7,44 +7,172 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { upsertCustomer } from "@/lib/linear-customer";
 import { createFormSubmission } from "@/lib/form-service";
+import { LinearClient } from "@linear/sdk";
 
-// Server action to create a comment
-export async function createComment(formData: FormData): Promise<void> {
+// Assume linearClient is initialized, e.g.:
+const linearClient = new LinearClient({
+  apiKey: process.env.LINEAR_API_KEY,
+});
+
+// Helper function to upload file to Linear
+async function uploadFileToLinear(file: File): Promise<string> {
+  const client = getLinearClient();
+  
+  // Convert the file to a buffer
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  
+  // Upload to Linear using their uploadFile mutation
+  try {
+    const response = await client.client.rawRequest(`
+      mutation UploadFile($file: Upload!) {
+        fileUpload(file: $file) {
+          success
+          file {
+            id
+            url
+          }
+        }
+      }
+    `, { file: buffer });
+    
+    // Type the response data
+    type FileUploadResponse = {
+      data: {
+        fileUpload: {
+          success: boolean;
+          file: {
+            id: string;
+            url: string;
+          }
+        }
+      }
+    };
+    
+    // Return the file URL for embedding in markdown
+    return (response as FileUploadResponse).data.fileUpload.file.url;
+  } catch (error) {
+    console.error("Error uploading file to Linear:", error);
+    throw new Error(`Failed to upload file: ${error}`);
+  }
+}
+
+export async function uploadAttachmentAction(formData: FormData) {
+  const file = formData.get("file") as File;
+
+  if (!file) {
+    return { success: false, error: "No file provided." };
+  }
+
+  try {
+    const uploadPayload = await linearClient.fileUpload(
+      file.type,
+      file.name,
+      file.size
+    );
+
+    if (!uploadPayload.success || !uploadPayload.uploadFile) {
+      console.error("Linear SDK fileUpload error:", uploadPayload);
+      return { success: false, error: "Failed to request Linear upload URL." };
+    }
+
+    const { uploadUrl, assetUrl, headers: linearHeaders } = uploadPayload.uploadFile;
+
+    const putHeaders = new Headers();
+    putHeaders.set("Content-Type", file.type);
+    putHeaders.set("Cache-Control", "public, max-age=31536000");
+    linearHeaders.forEach(({ key, value }) => putHeaders.set(key, value));
+
+    const fileBuffer = await file.arrayBuffer();
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: putHeaders,
+      body: fileBuffer,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error(
+        "Failed to upload file to Linear storage:",
+        uploadResponse.status,
+        errorText
+      );
+      return {
+        success: false,
+        error: `Failed to upload to Linear storage: ${uploadResponse.statusText} ${errorText}`,
+      };
+    }
+
+    return { success: true, assetUrl };
+  } catch (error: any) {
+    console.error("Error in uploadAttachmentAction:", error);
+    return {
+      success: false,
+      error: error.message || "Unknown server error during upload.",
+    };
+  }
+}
+
+export async function createComment(formData: FormData) {
   const issueId = formData.get("issueId") as string;
   const body = formData.get("body") as string;
-  
-  if (!body || !body.trim()) {
-    throw new Error("Comment cannot be empty");
+
+  if (!issueId || !body) {
+    return { success: false, error: "Issue ID and comment body are required." };
   }
-  
+
   const client = getLinearClient();
+
   try {
-    // First create the comment
-    const commentResponse = await client.client.rawRequest(`
+    const response = await client.client.rawRequest(
+      `
       mutation CreateComment($input: CommentCreateInput!) {
         commentCreate(input: $input) {
           success
           comment {
             id
+            body
           }
         }
-      }`,
-      { 
+      }
+    `,
+      {
         input: {
           issueId,
-          body
-        }
+          body,
+        },
       }
     );
-    
-    // TODO: For file uploads, we would need to use Linear's API to upload files
-    // This would require additional implementation with their file upload endpoints
-    // The implementation would depend on Linear's specific file upload API
-    
-    revalidatePath(`/issue/${issueId}`);
-  } catch (error) {
+
+    type CommentCreateResponse = {
+      data?: {
+        commentCreate: {
+          success: boolean;
+          comment?: { id: string; body: string };
+          error?: string;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    const typedResponse = response as CommentCreateResponse;
+
+    if (typedResponse.data?.commentCreate?.success && typedResponse.data.commentCreate.comment) {
+      revalidatePath(`/issue/${issueId}`);
+      revalidatePath("/issues");
+      return { success: true, comment: typedResponse.data.commentCreate.comment };
+    } else {
+      const errorMessage = typedResponse.data?.commentCreate?.error || typedResponse.errors?.map(e => e.message).join(', ') || "Failed to create comment on Linear.";
+      console.error("Failed to create comment:", errorMessage, typedResponse);
+      return { success: false, error: errorMessage };
+    }
+  } catch (error: any) {
     console.error("Error creating comment:", error);
-    throw new Error(`Failed to create comment: ${error}`);
+    return {
+      success: false,
+      error: error.message || "An unexpected error occurred while creating the comment.",
+    };
   }
 }
 
@@ -82,7 +210,7 @@ export async function deleteIssueAndRedirect(issueId: string) {
 }
 
 // Server action to update an issue
-export async function updateIssue(formData: FormData): Promise<void> {
+export async function updateIssue(formData: FormData): Promise<{ success: boolean; issueId: string; error?: string }> {
   const issueId = formData.get("issueId") as string;
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
@@ -110,10 +238,23 @@ export async function updateIssue(formData: FormData): Promise<void> {
     );
     
     revalidatePath(`/issue/${issueId}`);
-    redirect(`/issue/${issueId}`);
+    return { success: true, issueId };
   } catch (error) {
     console.error("Error updating issue:", error);
-    throw new Error(`Failed to update issue: ${error}`);
+    return { success: false, issueId, error: String(error) };
+  }
+}
+
+// Combined server action to update issue and redirect
+export async function updateIssueAndRedirect(formData: FormData): Promise<void> {
+  "use server";
+  
+  const result = await updateIssue(formData);
+  if (result.success) {
+    redirect(`/issue/${result.issueId}`);
+  } else {
+    // Handle error case - you could add more logic here
+    throw new Error(`Failed to update issue: ${result.error}`);
   }
 }
 

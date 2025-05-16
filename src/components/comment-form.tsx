@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { createComment } from "@/app/actions";
-import Image from "next/image";
+import { createComment, uploadAttachmentAction } from "@/app/actions";
+import { TipTapCommentEditor } from "./tiptap-comment-editor";
+import { useRouter } from "next/navigation";
 
 interface CommentFormProps {
   issueId: string;
@@ -11,129 +12,170 @@ interface CommentFormProps {
 
 export function CommentForm({ issueId }: CommentFormProps) {
   const [comment, setComment] = useState("");
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-  // Auto-resize function
-  const autoResize = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
-  };
+  const processSelectedFiles = async (selectedFiles: FileList | File[]) => {
+    console.log('processSelectedFiles triggered for:', selectedFiles[0]?.name, new Date().toISOString());
+    if (!selectedFiles || selectedFiles.length === 0) return;
 
-  // Apply auto-resize on input change and on initial render
-  useEffect(() => {
-    autoResize();
-  }, [comment]);
+    setIsSubmitting(true);
 
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setAttachments([...attachments, ...newFiles]);
+    const newFiles = Array.from(selectedFiles);
+
+    for (const file of newFiles) {
+      const tempId = `uploading-${file.name}-${Date.now()}`;
+      const tempMessage = `<!-- ${tempId} -->Uploading ${file.name}...`;
       
-      // Create preview URLs
-      const newPreviewUrls = newFiles.map(file => URL.createObjectURL(file));
-      setPreviewUrls([...previewUrls, ...newPreviewUrls]);
+      try {
+        const fileFormData = new FormData();
+        fileFormData.append("file", file);
+
+        setComment(prev => (prev.length > 0 ? prev + '\n' : '') + tempMessage + '\n');
+
+        const uploadResult = await uploadAttachmentAction(fileFormData);
+        
+        setComment(prev => {
+          const regexToRemove = new RegExp(`(\\n)?<!-- ${tempId} -->.*?\n`, 'g');
+          let currentContent = prev.replace(regexToRemove, "");
+          currentContent = currentContent.replace(/\n+$/, '\n'); 
+          if (currentContent.length > 0 && !currentContent.endsWith('\n') && currentContent !== '\n') currentContent += '\n';
+          if (currentContent.length === 1 && currentContent === '\n') currentContent = '';
+
+          if (uploadResult.success && uploadResult.assetUrl) {
+            let markdownToInsert = "";
+            if (file.type.startsWith("image/")) {
+              markdownToInsert = `![${file.name}](${uploadResult.assetUrl})`;
+            } else {
+              markdownToInsert = `[${file.name}](${uploadResult.assetUrl})`;
+            }
+            return (currentContent + markdownToInsert + '\n').replace(/^\n+/, '');
+          } else {
+            console.error("Failed to upload file:", file.name, uploadResult.error);
+            alert(`Failed to upload ${file.name}: ${uploadResult.error || 'Unknown error'}`);
+            const failMessage = `Failed to upload ${file.name}: ${uploadResult.error || 'Unknown error'}`;
+            return (currentContent + failMessage + '\n').replace(/^\n+/, '');
+          }
+        });
+
+      } catch (error: any) {
+        setComment(prev => {
+          const regexToRemove = new RegExp(`(\\n)?<!-- ${tempId} -->.*?\n`, 'g');
+          let currentContent = prev.replace(regexToRemove, "");
+          currentContent = currentContent.replace(/\n+$/, '\n');
+          if (currentContent.length > 0 && !currentContent.endsWith('\n') && currentContent !== '\n') currentContent += '\n';
+          if (currentContent.length === 1 && currentContent === '\n') currentContent = '';
+
+          const errorMessage = `Error uploading ${file.name}: ${error.message || 'Unknown error'}`;
+          console.error("Error processing file upload:", file.name, error);
+          alert(`Error uploading ${file.name}: ${error.message || 'Unknown error'}`);
+          return (currentContent + errorMessage + '\n').replace(/^\n+/, '');
+        });
+      }
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      processSelectedFiles(e.target.files);
+    }
+    if (e.target) {
+      e.target.value = "";
     }
   };
 
-  // Clean up preview URLs when component unmounts
-  useEffect(() => {
-    return () => {
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [previewUrls]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const handleDragOver = (e: React.DragEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+  const handleDragLeave = () => setIsDragOver(false);
+  const handleDrop = (e: React.DragEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processSelectedFiles(e.dataTransfer.files);
+      e.dataTransfer.clearData();
+    }
+  };
 
-  // Remove an attachment
-  const removeAttachment = (index: number) => {
-    URL.revokeObjectURL(previewUrls[index]);
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
     
-    setAttachments(attachments.filter((_, i) => i !== index));
-    setPreviewUrls(previewUrls.filter((_, i) => i !== index));
+    const formData = new FormData();
+    formData.set("issueId", issueId);
+    formData.set("body", comment);
+      
+    try {
+      const result = await createComment(formData);
+      
+      if (result.success) {
+        setComment("");
+        router.refresh();
+      } else {
+        console.error("Error submitting comment:", result.error);
+        alert(`Failed to post comment: ${result.error || "Please try again."}`);
+      }
+    } catch (error) {
+      console.error("Error submitting comment:", error);
+      alert("Failed to post comment. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
+    if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+      e.preventDefault();
+      processSelectedFiles(e.clipboardData.files);
+    }
   };
 
   return (
-    <form action={createComment} className="space-y-4">
-      <input type="hidden" name="issueId" value={issueId} />
-      
-      <div className="relative">
-        <textarea
-          ref={textareaRef}
-          id="body"
-          name="body"
+    <form
+      onSubmit={handleSubmit}
+      className={`space-y-4 ${isDragOver ? 'outline-dashed outline-2 outline-blue-500' : ''}`}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+    >
+      <p className="text-xs text-gray-400 mb-1">
+        You can <strong>drag & drop</strong> images/files or <strong>paste</strong> screenshots directly. Markdown is supported. Attachments will be uploaded and embedded automatically.
+      </p>
+
+      <div className="border border-[#333] rounded-md overflow-hidden bg-[#0c0c0c]">
+        <TipTapCommentEditor
           value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="Write a comment..."
-          className="w-full min-h-[100px] p-4 resize-none bg-[#0c0c0c] border border-[#333] rounded-md text-base text-gray-200 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-[#444]"
-          required
+          onChange={setComment}
+          placeholder="Write a comment... Add images via paste or drag & drop."
+          className="text-white"
+          minHeight="120px"
         />
       </div>
       
-      {/* Attachment previews */}
-      {previewUrls.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {previewUrls.map((url, index) => (
-            <div key={index} className="relative group">
-              <div className="w-20 h-20 bg-[#222] rounded-md border border-[#333] overflow-hidden flex items-center justify-center">
-                {attachments[index].type.startsWith("image/") ? (
-                  <Image 
-                    src={url} 
-                    alt={`Attachment ${index + 1}`} 
-                    width={80} 
-                    height={80} 
-                    className="object-cover" 
-                  />
-                ) : (
-                  <div className="text-xs text-center text-gray-400 p-2">
-                    {attachments[index].name.slice(0, 20)}
-                    {attachments[index].name.length > 20 ? "..." : ""}
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeAttachment(index)}
-                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        id="file-upload"
+        className="hidden"
+        onChange={handleFileChange}
+        multiple
+        accept="image/*,.pdf,.doc,.docx,.txt,.zip"
+        disabled={isSubmitting}
+      />
       
-      <div className="flex justify-between items-center">
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            id="file-upload"
-            className="hidden"
-            onChange={handleFileChange}
-            multiple
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-gray-400 hover:text-gray-200 flex items-center gap-1 text-sm py-1 px-2 rounded-md hover:bg-[#333]"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-            </svg>
-            Attach files
-          </button>
-        </div>
-        
+      <div className="flex justify-end">
         <Button 
           type="submit"
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 h-auto"
+          disabled={isSubmitting}
         >
-          Add Comment
+          {isSubmitting ? "Processing..." : "Add Comment"}
         </Button>
       </div>
     </form>

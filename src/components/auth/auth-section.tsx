@@ -70,12 +70,22 @@ export function AuthSection() {
           Log in
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md space-y-4 bg-background dark:bg-neutral-900 bg-white z-[500]" style={{top: "calc(50px + 2rem)", position: "absolute", transform: "translate(-50%, 0)"}}>
+      <DialogContent className="sm:max-w-md space-y-4 bg-background dark:bg-neutral-900 bg-white z-[500] fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">Welcome</DialogTitle>
         </DialogHeader>
         {view === 'options' && (
           <>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  For Customers
+                </span>
+              </div>
+            </div>
             <Button className="w-full" variant="outline" onClick={() => setView('signup')}>
               Register
             </Button>
