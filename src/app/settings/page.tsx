@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 function SettingsPageInner() {
   const [activeSection, setActiveSection] = useState("form");
   const searchParams = useSearchParams();
   const router = useRouter();
   const formId = searchParams.get('formId');
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
 
   // Saved forms state (database-backed)
   const [savedForms, setSavedForms] = useState<any[]>([]);
@@ -19,14 +23,19 @@ function SettingsPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchForms = async () => {
-      try {
+    if (!isAuthenticated) {
+      setSavedForms([]);
+      return;
+    }
+
+    try {
       setLoadingForms(true);
       const res = await fetch("/api/forms", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch");
       const json = await res.json();
       setSavedForms(json.data ?? []);
       setError(null);
-      } catch (err) {
+    } catch (err) {
       console.error("Error fetching forms", err);
       setError("Failed to load forms");
     } finally {
@@ -36,10 +45,12 @@ function SettingsPageInner() {
 
   // Load once on mount and when tab gains focus (for updates)
   useEffect(() => {
-    fetchForms();
-    window.addEventListener("focus", fetchForms);
-    return () => window.removeEventListener("focus", fetchForms);
-  }, []);
+    if (isAuthenticated) {
+      fetchForms();
+      window.addEventListener("focus", fetchForms);
+      return () => window.removeEventListener("focus", fetchForms);
+    }
+  }, [isAuthenticated]);
 
   // Switch to form view when formId is present in URL
   useEffect(() => {
@@ -56,6 +67,7 @@ function SettingsPageInner() {
   }, [activeSection]);
 
   const handleDeleteForm = async (id: string) => {
+    if (!isAuthenticated) return;
     if (!confirm("Delete this form?")) return;
     try {
       await fetch(`/api/forms/${id}`, { method: "DELETE" });
@@ -67,6 +79,7 @@ function SettingsPageInner() {
   };
 
   const handleEditForm = (id: string) => {
+    if (!isAuthenticated) return;
     // Programmatically navigate and force the view to change
     router.push(`/settings?formId=${id}`);
     setActiveSection("form");
@@ -78,6 +91,28 @@ function SettingsPageInner() {
     { id: "savedForms", label: "Saved Forms" },
     // Future menu items can be appended here.
   ];
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <Card className="max-w-md w-full p-6">
+          <h1 className="text-2xl font-bold mb-4">Authentication Required</h1>
+          <p className="mb-6">
+            You need to be logged in to access form settings and manage your forms.
+            Public forms can still be submitted without authentication.
+          </p>
+          <div className="flex gap-4">
+            <Button asChild>
+              <Link href="/api/auth/signin">Sign In</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/">Return to Home</Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

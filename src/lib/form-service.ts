@@ -79,19 +79,39 @@ export async function getUserForms(teamId?: string | null) {
 export async function getFormById(id: string) {
   const session = await getServerSession(authOptions);
   
-  if (!session?.user?.id) {
-    throw new Error("You must be logged in to view forms");
-  }
+  /**
+   * Similar to getUserForms:
+   * - If authenticated, only allow viewing own forms
+   * - If unauthenticated, allow viewing forms by ID if they have a teamId
+   *   but don't include submissions
+   */
   
-  return prisma.form.findUnique({
-    where: {
-      id,
-      userId: session.user.id // Ensure user can only see their own forms
-    },
-    include: {
-      submissions: true // Include form submissions
+  if (session?.user?.id) {
+    // Authenticated - only show own forms with submissions
+    return prisma.form.findUnique({
+      where: {
+        id,
+        userId: session.user.id // Ensure user can only see their own forms
+      },
+      include: {
+        submissions: true // Include form submissions
+      }
+    });
+  } else {
+    // Unauthenticated - only allow forms with teamId without submissions
+    const form = await prisma.form.findFirst({
+      where: {
+        id,
+        NOT: { teamId: null } // Only forms with a teamId
+      }
+    });
+    
+    if (!form) {
+      throw new Error("Form not found or requires authentication");
     }
-  });
+    
+    return form;
+  }
 }
 
 /**
