@@ -7,7 +7,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 
 function SettingsPageInner() {
   const [activeSection, setActiveSection] = useState("form");
@@ -23,17 +22,21 @@ function SettingsPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchForms = async () => {
-    if (!isAuthenticated) {
-      setSavedForms([]);
-      return;
-    }
-
     try {
       setLoadingForms(true);
-      const res = await fetch("/api/forms", { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      setSavedForms(json.data ?? []);
+
+      if (isAuthenticated) {
+        // Fetch from database
+        const res = await fetch("/api/forms", { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to fetch");
+        const json = await res.json();
+        setSavedForms(json.data ?? []);
+      } else {
+        // Fallback to localStorage for unauthenticated users
+        const savedRaw = localStorage.getItem("savedForms");
+        const localForms = savedRaw ? JSON.parse(savedRaw) : [];
+        setSavedForms(localForms);
+      }
       setError(null);
     } catch (err) {
       console.error("Error fetching forms", err);
@@ -67,8 +70,23 @@ function SettingsPageInner() {
   }, [activeSection]);
 
   const handleDeleteForm = async (id: string) => {
-    if (!isAuthenticated) return;
     if (!confirm("Delete this form?")) return;
+
+    if (!isAuthenticated) {
+      // Remove from localStorage
+      try {
+        const savedRaw = localStorage.getItem("savedForms");
+        const localForms = savedRaw ? JSON.parse(savedRaw) : [];
+        const updated = localForms.filter((f: any) => f.id !== id);
+        localStorage.setItem("savedForms", JSON.stringify(updated));
+        setSavedForms(updated);
+      } catch (err) {
+        console.error("Failed to delete local form", err);
+      }
+      return;
+    }
+
+    // Authenticated: delete via API
     try {
       await fetch(`/api/forms/${id}`, { method: "DELETE" });
       fetchForms();
@@ -79,7 +97,6 @@ function SettingsPageInner() {
   };
 
   const handleEditForm = (id: string) => {
-    if (!isAuthenticated) return;
     // Programmatically navigate and force the view to change
     router.push(`/settings?formId=${id}`);
     setActiveSection("form");
@@ -91,28 +108,6 @@ function SettingsPageInner() {
     { id: "savedForms", label: "Saved Forms" },
     // Future menu items can be appended here.
   ];
-
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <Card className="max-w-md w-full p-6">
-          <h1 className="text-2xl font-bold mb-4">Authentication Required</h1>
-          <p className="mb-6">
-            You need to be logged in to access form settings and manage your forms.
-            Public forms can still be submitted without authentication.
-          </p>
-          <div className="flex gap-4">
-            <Button asChild>
-              <Link href="/api/auth/signin">Sign In</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/">Return to Home</Link>
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <SidebarProvider>

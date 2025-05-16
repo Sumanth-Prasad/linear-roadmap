@@ -18,6 +18,7 @@ import type { FieldType, FormField, FieldMention, MentionMenuState, LinearIntegr
 import { LexicalBadgeEditor } from "@/components/LexicalBadgeEditor";
 import { useSearchParams } from 'next/navigation';
 import { createForm, updateForm } from "@/lib/form-service";
+import { useSession } from "next-auth/react";
 
 // Add the global declaration for our helper methods
 declare global {
@@ -129,48 +130,6 @@ export default function FormBuilder() {
     setFields(updateField(fields, id, updates));
   };
   
-  // Save the form
-  const handleSaveForm = async () => {
-    // Basic validation: ensure a title and at least one field exists
-    if (!formSettings.title.trim()) {
-      alert('Form title is required.');
-      return;
-    }
-    if (fields.length === 0) {
-      alert('Please add at least one field to the form.');
-      return;
-    }
-
-    try {
-      // Prepare form data
-      const formData = {
-        title: formSettings.title,
-        description: formSettings.description,
-        teamId: linearSettings.team,
-        projectId: linearSettings.project,
-        fields: fields,
-        settings: formSettings,
-        linearSettings: linearSettings
-      };
-      
-      let savedForm;
-      
-      if (formId) {
-        // Update existing form
-        savedForm = await updateForm(formId, formData);
-      } else {
-        // Create new form
-        savedForm = await createForm(formData);
-        setFormId(savedForm.id);
-      }
-      
-      alert('Form saved to database!');
-    } catch (err) {
-      console.error('Error saving form', err);
-      alert('Failed to save form. See console for details.');
-    }
-  };
-
   // ===== VALIDATION =====
   // Email validation
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>, fieldId: string) => {
@@ -652,6 +611,64 @@ export default function FormBuilder() {
   }, [formSettings.type, formSettings.customType, formSettings.emoji]);
 
   // ===== RENDER =====
+  const { data: session } = useSession();
+
+  const handleSaveForm = async () => {
+    // Prepare form data
+    const formData = {
+      title: formSettings.title,
+      description: formSettings.description,
+      teamId: linearSettings.team,
+      projectId: linearSettings.project,
+      fields: fields,
+      settings: formSettings,
+      linearSettings: linearSettings
+    };
+
+    // If user is authenticated, use server actions (DB)
+    if (session?.user?.id) {
+      try {
+        let savedForm;
+        if (formId) {
+          savedForm = await updateForm(formId, formData);
+        } else {
+          savedForm = await createForm(formData);
+          setFormId(savedForm.id);
+        }
+        alert('Form saved to database!');
+      } catch (err) {
+        console.error('Error saving form', err);
+        alert('Failed to save form to database.');
+      }
+      return;
+    }
+
+    // ----- Offline/local fallback for unauthenticated users -----
+    try {
+      const savedRaw = localStorage.getItem('savedForms');
+      const savedForms: any[] = savedRaw ? JSON.parse(savedRaw) : [];
+
+      if (formId) {
+        // Update existing local form
+        const idx = savedForms.findIndex((f) => f.id === formId);
+        if (idx > -1) {
+          savedForms[idx] = { ...savedForms[idx], ...formData, formSettings: formSettings };
+        }
+      } else {
+        // Generate a simple id and store new
+        const newId = `local_${Date.now()}`;
+        setFormId(newId);
+        savedForms.push({ id: newId, ...formData, formSettings: formSettings });
+      }
+
+      localStorage.setItem('savedForms', JSON.stringify(savedForms));
+      alert('Form saved locally (not logged in). It will only be available on this device.');
+    } catch (err) {
+      console.error('Local save failed', err);
+      alert('Failed to save form locally.');
+    }
+  };
+
   return (
     <div className="relative bg-background text-foreground form-builder-container" ref={formContainerRef}>
       <CursorStyleFix />
