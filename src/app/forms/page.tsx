@@ -5,19 +5,20 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { SavedForm } from "@/components/form-builder/core/types";
-import { getUserForms, deleteForm } from "@/lib/form-service";
 
 export default function SavedFormsPage() {
   const [forms, setForms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load saved forms from database
+  // Load saved forms from database via API route
   const loadForms = async () => {
     try {
       setLoading(true);
-      const data = await getUserForms();
-      setForms(data);
+      const res = await fetch("/api/forms", { cache: "no-store" });
+      if (!res.ok) throw new Error("Network response was not ok");
+      const json = await res.json();
+      setForms(json.data ?? []);
       setError(null);
     } catch (err) {
       console.error("Failed to load saved forms", err);
@@ -37,7 +38,8 @@ export default function SavedFormsPage() {
     }
     
     try {
-      await deleteForm(id);
+      const res = await fetch(`/api/forms/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
       // Reload forms after deletion
       loadForms();
     } catch (err) {

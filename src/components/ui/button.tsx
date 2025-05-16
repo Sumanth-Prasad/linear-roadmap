@@ -24,7 +24,7 @@ if (typeof document !== 'undefined') {
         border-radius: 0.5rem !important; /* More rounded corners */
         box-shadow: 0 2px 8px 0 rgba(0, 118, 255, 0.30) !important; /* Standard pop-out shadow */
         font-weight: 600 !important; /* Bolder text */
-        z-index: 1000 !important; /* Elevate z-index significantly */
+        z-index: 100 !important; /* Lower than dialog overlay (z-150) so dialogs appear above */
         transition: transform 0.2s ease-out, box-shadow 0.2s ease-out !important;
       }
       .my-forced-opaque-button.super-cta-button {
