@@ -68,14 +68,14 @@ model Form {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   publishedAt     DateTime?
-  userId          String
+  userId          String?
   teamId          String?
   projectId       String?
   fields          Json      // Array of field configurations
   settings        Json?     // Form settings like submission behavior
   linearSettings  Json?     // Linear integration settings
   submissions     FormSubmission[]
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@map("forms")
 }

@@ -14,11 +14,10 @@ import { MentionPopup } from "../mentions/mention-popup";
 import { updateMentionPositions, processMentionSelection } from "../mentions/mention-utils";
 import { getDefaultPlaceholder, createNewField } from "../utils/field-utils";
 import { updateField, removeField as removeFieldOp, addOption, removeOption, updateOption } from "../utils/field-operations";
-import type { FieldType, FormField, FieldMention, MentionMenuState, LinearIntegrationSettings, FormSettings, FormType, SavedForm } from "./types";
+import type { FieldType, FormField, FieldMention, MentionMenuState, LinearIntegrationSettings, FormSettings, FormType } from "./types";
 import { LexicalBadgeEditor } from "@/components/LexicalBadgeEditor";
 import { useSearchParams } from 'next/navigation';
 import { createForm, updateForm } from "@/lib/form-service";
-import { useSession } from "next-auth/react";
 
 // Add the global declaration for our helper methods
 declare global {
@@ -573,20 +572,6 @@ export default function FormBuilder() {
 
     const loadForm = async () => {
       try {
-        // Try localStorage first (legacy)
-        const savedRaw = localStorage.getItem('savedForms');
-        if (savedRaw) {
-          const savedForms: SavedForm[] = JSON.parse(savedRaw);
-          const existing = savedForms.find((f) => f.id === initialFormId);
-          if (existing) {
-            setFields(existing.fields);
-            setFormSettings(existing.formSettings);
-            setLinearSettings(existing.linearSettings);
-            return;
-          }
-        }
-
-        // Fallback to DB via API route
         const res = await fetch(`/api/forms/${initialFormId}`, { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
@@ -611,7 +596,6 @@ export default function FormBuilder() {
   }, [formSettings.type, formSettings.customType, formSettings.emoji]);
 
   // ===== RENDER =====
-  const { data: session } = useSession();
 
   const handleSaveForm = async () => {
     // Prepare form data
@@ -622,50 +606,21 @@ export default function FormBuilder() {
       projectId: linearSettings.project,
       fields: fields,
       settings: formSettings,
-      linearSettings: linearSettings
+      linearSettings: linearSettings,
     };
 
-    // If user is authenticated, use server actions (DB)
-    if (session?.user?.id) {
-      try {
-        let savedForm;
-        if (formId) {
-          savedForm = await updateForm(formId, formData);
-        } else {
-          savedForm = await createForm(formData);
-          setFormId(savedForm.id);
-        }
-        alert('Form saved to database!');
-      } catch (err) {
-        console.error('Error saving form', err);
-        alert('Failed to save form to database.');
-      }
-      return;
-    }
-
-    // ----- Offline/local fallback for unauthenticated users -----
     try {
-      const savedRaw = localStorage.getItem('savedForms');
-      const savedForms: any[] = savedRaw ? JSON.parse(savedRaw) : [];
-
+      let savedForm;
       if (formId) {
-        // Update existing local form
-        const idx = savedForms.findIndex((f) => f.id === formId);
-        if (idx > -1) {
-          savedForms[idx] = { ...savedForms[idx], ...formData, formSettings: formSettings };
-        }
+        savedForm = await updateForm(formId, formData);
       } else {
-        // Generate a simple id and store new
-        const newId = `local_${Date.now()}`;
-        setFormId(newId);
-        savedForms.push({ id: newId, ...formData, formSettings: formSettings });
+        savedForm = await createForm(formData);
+        setFormId(savedForm.id);
       }
-
-      localStorage.setItem('savedForms', JSON.stringify(savedForms));
-      alert('Form saved locally (not logged in). It will only be available on this device.');
+      alert('Form saved successfully!');
     } catch (err) {
-      console.error('Local save failed', err);
-      alert('Failed to save form locally.');
+      console.error('Error saving form', err);
+      alert('Failed to save form.');
     }
   };
 

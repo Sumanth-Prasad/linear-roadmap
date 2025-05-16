@@ -34,12 +34,8 @@ function SettingsPageInner() {
       setSavedForms(json.data ?? []);
       setError(null);
     } catch (dbErr) {
-      console.warn("DB fetch failed, falling back to local storage", dbErr);
-      // Fallback to localStorage
-      const savedRaw = localStorage.getItem("savedForms");
-      const localForms = savedRaw ? JSON.parse(savedRaw) : [];
-      setSavedForms(localForms);
-      setError(null);
+      console.error("DB fetch failed", dbErr);
+      setError("Failed to load forms");
     } finally {
       setLoadingForms(false);
     }
@@ -69,21 +65,6 @@ function SettingsPageInner() {
   const handleDeleteForm = async (id: string) => {
     if (!confirm("Delete this form?")) return;
 
-    if (!isAuthenticated) {
-      // Remove from localStorage
-      try {
-        const savedRaw = localStorage.getItem("savedForms");
-        const localForms = savedRaw ? JSON.parse(savedRaw) : [];
-        const updated = localForms.filter((f: any) => f.id !== id);
-        localStorage.setItem("savedForms", JSON.stringify(updated));
-        setSavedForms(updated);
-      } catch (err) {
-        console.error("Failed to delete local form", err);
-      }
-      return;
-    }
-
-    // Authenticated: delete via API
     try {
       await fetch(`/api/forms/${id}`, { method: "DELETE" });
       fetchForms();
