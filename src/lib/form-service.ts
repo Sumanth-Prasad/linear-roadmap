@@ -60,11 +60,11 @@ export async function getUserForms(teamId?: string | null) {
       whereClause.OR = [{ teamId }, { teamId: null }];
     }
   } else {
-    // Unauthenticated – only allow access via explicit teamId.
-    if (!teamId) {
-      return [];
-    }
-    whereClause.teamId = teamId;
+    // Unauthenticated – return public forms. If teamId supplied, filter by it; otherwise return all.
+    if (teamId) {
+      // Include both team-specific and global (null team) forms like the authed path.
+      whereClause.OR = [{ teamId }, { teamId: null }];
+    } // else leave whereClause empty to fetch every form
   }
 
   return prisma.form.findMany({

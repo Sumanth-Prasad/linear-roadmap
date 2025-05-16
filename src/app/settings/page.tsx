@@ -28,22 +28,18 @@ function SettingsPageInner() {
 
       const queryUrl = teamIdParam ? `/api/forms?teamId=${teamIdParam}` : "/api/forms";
 
-      if (isAuthenticated || teamIdParam) {
-        // Fetch from database (authenticated OR explicit teamId)
-        const res = await fetch(queryUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to fetch");
-        const json = await res.json();
-        setSavedForms(json.data ?? []);
-      } else {
-        // Fallback to localStorage for unauthenticated users
-        const savedRaw = localStorage.getItem("savedForms");
-        const localForms = savedRaw ? JSON.parse(savedRaw) : [];
-        setSavedForms(localForms);
-      }
+      const res = await fetch(queryUrl, { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+      setSavedForms(json.data ?? []);
       setError(null);
-    } catch (err) {
-      console.error("Error fetching forms", err);
-      setError("Failed to load forms");
+    } catch (dbErr) {
+      console.warn("DB fetch failed, falling back to local storage", dbErr);
+      // Fallback to localStorage
+      const savedRaw = localStorage.getItem("savedForms");
+      const localForms = savedRaw ? JSON.parse(savedRaw) : [];
+      setSavedForms(localForms);
+      setError(null);
     } finally {
       setLoadingForms(false);
     }
@@ -51,12 +47,10 @@ function SettingsPageInner() {
 
   // Load once on mount and when tab gains focus (for updates)
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchForms();
-      window.addEventListener("focus", fetchForms);
-      return () => window.removeEventListener("focus", fetchForms);
-    }
-  }, [isAuthenticated]);
+    fetchForms();
+    window.addEventListener("focus", fetchForms);
+    return () => window.removeEventListener("focus", fetchForms);
+  }, [isAuthenticated, teamIdParam]);
 
   // Switch to form view when formId is present in URL
   useEffect(() => {
