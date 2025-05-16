@@ -13,6 +13,7 @@ function SettingsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const formId = searchParams.get('formId');
+  const teamIdParam = searchParams.get('teamId');
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
 
@@ -25,9 +26,11 @@ function SettingsPageInner() {
     try {
       setLoadingForms(true);
 
-      if (isAuthenticated) {
-        // Fetch from database
-        const res = await fetch("/api/forms", { cache: "no-store" });
+      const queryUrl = teamIdParam ? `/api/forms?teamId=${teamIdParam}` : "/api/forms";
+
+      if (isAuthenticated || teamIdParam) {
+        // Fetch from database (authenticated OR explicit teamId)
+        const res = await fetch(queryUrl, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to fetch");
         const json = await res.json();
         setSavedForms(json.data ?? []);
