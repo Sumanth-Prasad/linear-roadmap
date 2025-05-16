@@ -19,14 +19,14 @@ function SettingsPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchForms = async () => {
-    try {
+      try {
       setLoadingForms(true);
       const res = await fetch("/api/forms", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch");
       const json = await res.json();
       setSavedForms(json.data ?? []);
       setError(null);
-    } catch (err) {
+      } catch (err) {
       console.error("Error fetching forms", err);
       setError("Failed to load forms");
     } finally {

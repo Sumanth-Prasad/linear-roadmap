@@ -998,53 +998,35 @@ export function LexicalBadgeEditor({
         setEditorState(editorState.toJSON());
       });
 
-      // Serialize editor content. If markdown mode is active, include markdown
-      // formatting markers (bold, italic, etc.). Otherwise, keep plain text +
-      // mention tokens.
+      // In plain-text mode we want to embed special mention markup so that
+      // mentions can be restored later when the text is re-loaded.  We walk the
+      // editor AST and convert BeautifulMentionNodes to the token format that
+      // the rest of the application already understands: `@[label](id)`.
       const serialized = editorState.read(() => {
-        const traverse = (node): string => {
-          // Handle custom mention nodes first so they aren\'t wrapped.
+        const traverse = (node) => {
+          // Handle our custom MentionNode or BeautifulMentionNode.
           if (node.getType) {
             const t = node.getType();
-            if (t === 'mention') {
-              const id = (node as any).__id ?? '';
+            if (t === "mention") {
+              const id = (node as any).__id ?? "";
               const label = (node as any).__label ?? id;
               return `@[${label}](${id})`;
             }
-            if (t === 'beautifulMention') {
+            if (t === "beautifulMention") {
               const value = node.getValue();
-              const data = (node as any).getData?.() ?? {};
+              const data = node.getData?.() ?? {};
               const id = data.id ?? value;
               return `@[${value}](${id})`;
             }
           }
 
-          // When markdown mode, wrap formatted text accordingly.
+          // Handle TextNode specifically to get its content.
           if ($isTextNode(node)) {
-            let textContent = node.getTextContent();
-            if (isMarkdown) {
-              if (node.hasFormat('code')) {
-                textContent = `\`${textContent}\``;
-              }
-              if (node.hasFormat('bold')) {
-                textContent = `**${textContent}**`;
-              }
-              if (node.hasFormat('italic')) {
-                textContent = `*${textContent}*`;
-              }
-              if (node.hasFormat('strikethrough')) {
-                textContent = `~~${textContent}~~`;
-              }
-              if (node.hasFormat('underline')) {
-                // Markdown doesn\'t have underline; use HTML tag
-                textContent = `<u>${textContent}</u>`;
-              }
-            }
-            return textContent;
+            return node.getTextContent();
           }
 
-          // Recurse into children for element nodes
-          let result = '';
+          // Recurse over children for ElementNodes (or any node that can have children).
+          let result = "";
           const children = node.getChildren?.();
           if (children && Array.isArray(children)) {
             children.forEach((child) => {
@@ -1052,17 +1034,17 @@ export function LexicalBadgeEditor({
             });
           }
 
-          // Add newlines after paragraph / heading / list item to preserve spacing
+          // Append newline for paragraph-like nodes to retain spacing.
           if ($isParagraphNode(node)) {
-            result += '\n';
+            result += "\n";
           }
           return result;
         };
 
-        let output = traverse($getRoot()).trim();
-        // Collapse multiple blank lines
-        output = output.replace(/\n\s*\n/g, '\n');
-        return output;
+        // Process the root, trim, and consolidate multiple newlines to single
+        let serializedText = traverse($getRoot()).trim();
+        serializedText = serializedText.replace(/\n\s*\n/g, '\n'); 
+        return serializedText;
       });
 
       onChange(serialized);
