@@ -207,7 +207,7 @@ export async function linearGraphQL<
   variables?: TVariables
 ): Promise<TResult> {
   // For client-side, get from localStorage if available
-  let apiKey = typeof window !== 'undefined' 
+  const apiKey = typeof window !== 'undefined' 
     ? localStorage.getItem('LINEAR_API_KEY') 
     : process.env.LINEAR_API_KEY;
   

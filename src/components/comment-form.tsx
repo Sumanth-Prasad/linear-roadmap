@@ -119,7 +119,7 @@ export function CommentForm({ issueId }: CommentFormProps) {
         console.error("Error submitting comment:", result.error);
         alert(`Failed to post comment: ${result.error || "Please try again."}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting comment:", error);
       alert("Failed to post comment. Please try again.");
     } finally {
