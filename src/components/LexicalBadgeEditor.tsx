@@ -36,7 +36,7 @@ import { MentionNode } from "@/components/MentionNode";
 
 // Import markdown-related packages
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
-import { TRANSFORMERS } from "@lexical/markdown";
+import { TRANSFORMERS, Transformer } from "@lexical/markdown";
 import { $convertToMarkdownString, $convertFromMarkdownString } from "@lexical/markdown";
 import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin";
 
@@ -829,78 +829,90 @@ function InitialContentPlugin({ initialValue, isMarkdown }: { initialValue: stri
       return;
     }
 
-    // Serialize current editor content to compare with incoming initialValue.
-    const currentSerialized = editor.getEditorState().read(() => {
-      const traverse = (node: any): string => {
-        if (node.getType) {
-          const t = node.getType();
-          if (t === "mention") {
-            const id = (node as any).__id ?? "";
-            const label = (node as any).__label ?? id;
-            return `@[${label}](${id})`;
-          }
-          if (t === "beautifulMention") {
-            const value = (node as any).getValue?.() ?? "";
-            const data = (node as any).getData?.() ?? {};
-            const id = data.id ?? value;
-            return `@[${value}](${id})`;
-          }
-        }
-        if ($isTextNode(node)) {
-          return node.getTextContent();
-        }
-        let res = "";
-        const children = node.getChildren?.();
-        if (children && Array.isArray(children)) {
-          children.forEach((c: any) => { res += traverse(c); });
-        }
-        if ($isParagraphNode(node)) {
-          res += "\n";
-        }
-        return res;
-      };
-      let text = traverse($getRoot()).trim();
-      text = text.replace(/\n\s*\n/g, "\n");
-      return text;
-    });
-
-    if (currentSerialized === initialValue.trim()) {
-      // No change needed; keep current state to preserve cursor.
-      return;
-    }
-
     // Proceed to update editor state if initialValue is different
     if (initialValue && initialValue.trim() !== '') {
-      // Build a fresh document by directly updating the editor
       editor.update(() => {
         const root = $getRoot();
-        root.clear(); 
+        root.clear();
 
-        // Always parse for `@[label](id)` tokens, regardless of isMarkdown.
-        // Markdown specific rendering (bold, italic, lists etc.) is handled by RichTextPlugin
-        // when isMarkdown is true. This plugin ensures mentions are consistently nodes.
-        const paragraph = $createParagraphNode();
-        const tokenRegex = /@\[([^\]]+)\]\(([^)]+)\)/g; 
-        let lastIndex = 0;
-        let match;
-        while ((match = tokenRegex.exec(initialValue)) !== null) {
-          const [full, label, id] = match;
-          const start = match.index;
-          if (start > lastIndex) {
-            paragraph.append($createTextNode(initialValue.slice(lastIndex, start)));
+        if (isMarkdown) {
+          /* -------------------------------------------
+           * 1. First, convert the Markdown string to Lexical nodes so that all
+           *    formatting (bold, italic, lists, headings, …) is preserved.
+           * ------------------------------------------- */
+          const mdNodes = $convertFromMarkdownString(initialValue, TRANSFORMERS) as any;
+          if (Array.isArray(mdNodes)) {
+            mdNodes.forEach((n: any) => root.append(n));
           }
-          paragraph.append(new MentionNode(id, label));
-          lastIndex = start + full.length;
-        }
-        if (lastIndex < initialValue.length) {
-          paragraph.append($createTextNode(initialValue.slice(lastIndex)));
-        }
-        
-        if (paragraph.getChildrenSize() > 0) {
-            root.append(paragraph);
+
+          /* -------------------------------------------
+           * 2. Walk all TextNodes and replace any `@[label](id)` tokens with a
+           *    proper MentionNode so that mentions keep their special UI &
+           *    behaviour inside the editor.
+           * ------------------------------------------- */
+          const processNode = (node: any) => {
+            if ($isTextNode(node)) {
+              const text = node.getTextContent();
+              const regex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+              if (!regex.test(text)) return;
+
+              const parent = node.getParent();
+              if (!parent) return;
+
+              let lastIdx = 0;
+              let match;
+              const parts: any[] = [];
+              regex.lastIndex = 0;
+              while ((match = regex.exec(text)) !== null) {
+                const [full, label, id] = match;
+                const start = match.index;
+                if (start > lastIdx) {
+                  parts.push($createTextNode(text.slice(lastIdx, start)));
+                }
+                parts.push(new MentionNode(id, label));
+                lastIdx = start + full.length;
+              }
+              if (lastIdx < text.length) {
+                parts.push($createTextNode(text.slice(lastIdx)));
+              }
+
+              if (parts.length) {
+                node.replace(parts[0]);
+                let prev = parts[0];
+                for (let i = 1; i < parts.length; i++) {
+                  prev.insertAfter(parts[i]);
+                  prev = parts[i];
+                }
+              }
+            } else if (node.getChildren) {
+              node.getChildren().forEach(processNode);
+            }
+          };
+
+          root.getChildren().forEach(processNode);
+
+          if (root.getChildrenSize() === 0) {
+            root.append($createParagraphNode());
+          }
         } else {
-            // Ensure editor isn't totally blank if value was just whitespace or empty after parsing
-            root.append($createParagraphNode().append($createTextNode('')));
+          /* Plain-text mode – previous behaviour */
+          const paragraph = $createParagraphNode();
+          const tokenRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+          let lastIndex = 0;
+          let match;
+          while ((match = tokenRegex.exec(initialValue)) !== null) {
+            const [full, label, id] = match;
+            const start = match.index;
+            if (start > lastIndex) {
+              paragraph.append($createTextNode(initialValue.slice(lastIndex, start)));
+            }
+            paragraph.append(new MentionNode(id, label));
+            lastIndex = start + full.length;
+          }
+          if (lastIndex < initialValue.length) {
+            paragraph.append($createTextNode(initialValue.slice(lastIndex)));
+          }
+          root.append(paragraph);
         }
       }, { tag: 'load-initial' });
     } else {
@@ -911,7 +923,7 @@ function InitialContentPlugin({ initialValue, isMarkdown }: { initialValue: stri
         root.append($createParagraphNode());
       });
     }
-  }, [editor, initialValue, isMarkdown]); // Add isMarkdown back to dependency array
+  }, [editor, initialValue, isMarkdown]);
 
   return null;
 }
@@ -991,71 +1003,47 @@ export function LexicalBadgeEditor({
   // Keep internal state to initialize only once
   const [editorState, setEditorState] = useState<string>(value);
 
-  const handleEditorChange = useCallback(
-    (editorState) => {
-      // Keep local machine-readable representation (for debugging etc.)
-      editorState.read(() => {
-        setEditorState(editorState.toJSON());
-      });
+  // ---------------------------------------------------------------------------
+  // MARKDOWN <-> LEXICAL HELPERS
+  // ---------------------------------------------------------------------------
 
-      // In plain-text mode we want to embed special mention markup so that
-      // mentions can be restored later when the text is re-loaded.  We walk the
-      // editor AST and convert BeautifulMentionNodes to the token format that
-      // the rest of the application already understands: `@[label](id)`.
-      const serialized = editorState.read(() => {
-        const traverse = (node) => {
-          // Handle our custom MentionNode or BeautifulMentionNode.
-          if (node.getType) {
-            const t = node.getType();
-            if (t === "mention") {
-              const id = (node as any).__id ?? "";
-              const label = (node as any).__label ?? id;
-              return `@[${label}](${id})`;
-            }
-            if (t === "beautifulMention") {
-              const value = node.getValue();
-              const data = node.getData?.() ?? {};
-              const id = data.id ?? value;
-              return `@[${value}](${id})`;
-            }
-          }
-
-          // Handle TextNode specifically to get its content.
-          if ($isTextNode(node)) {
-            return node.getTextContent();
-          }
-
-          // Recurse over children for ElementNodes (or any node that can have children).
-          let result = "";
-          const children = node.getChildren?.();
-          if (children && Array.isArray(children)) {
-            children.forEach((child) => {
-              result += traverse(child);
-            });
-          }
-
-          // Append newline for paragraph-like nodes to retain spacing.
-          if ($isParagraphNode(node)) {
-            result += "\n";
-          }
-          return result;
-        };
-
-        // Process the root, trim, and consolidate multiple newlines to single
-        let serializedText = traverse($getRoot()).trim();
-        serializedText = serializedText.replace(/\n\s*\n/g, '\n'); 
-        return serializedText;
-      });
-
-      onChange(serialized);
+  // Add support for exporting mention nodes as our special token syntax so they
+  // round-trip correctly when we serialise to Markdown.
+  const mentionMarkdownTransformer: Transformer = {
+    // The low-level `export` hook lets us specify how this node should be
+    // represented in Markdown. We only care about the Mention and Beautiful
+    // Mention nodes.
+    type: "element",
+    export: (node, _exportChildren) => {
+      const type = (node as any).getType?.();
+      if (type === "mention") {
+        const id = (node as any).__id ?? "";
+        const label = (node as any).__label ?? id;
+        return `@[${label}](${id})`;
+      }
+      if (type === "beautifulMention") {
+        const value = (node as any).getValue?.() ?? "";
+        const data = (node as any).getData?.() ?? {};
+        const id = data.id ?? value;
+        return `@[${value}](${id})`;
+      }
+      return null;
     },
-    [onChange],
-  );
+    // For now we let the default import behaviour handle mentions (they will be
+    // plain text) and we later convert the tokens into actual MentionNodes in
+    // InitialContentPlugin. Therefore we only implement `export`.
+    regExp: /@\[[^\]]+\]\([^\)]+\)/,
+    replace: (_node) => {
+      /* no-op – mention tokens are post-processed in InitialContentPlugin */
+    },
+    dependencies: [MentionNode, BeautifulMentionNode],
+  };
 
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Use a custom set of transformers to ensure lists work properly
-  const customTransformers = [...TRANSFORMERS];
+  // Compose our transformer list once so that the array reference is stable
+  // across renders.
+  const customTransformers = useMemo(() => {
+    return [...TRANSFORMERS, mentionMarkdownTransformer];
+  }, []);
 
   // Initialize with empty value to allow placeholder to show
   const initialValue = value || '';
@@ -1106,6 +1094,27 @@ export function LexicalBadgeEditor({
       </div>
     );
   };
+
+  const handleEditorChange = useCallback(
+    (editorState) => {
+      // Keep local machine-readable representation (for debugging etc.)
+      editorState.read(() => {
+        setEditorState(editorState.toJSON());
+      });
+
+      // Convert the entire document to Markdown using Lexical's helpers which
+      // will retain rich-text formatting such as **bold**, _italic_, lists,
+      // headings, etc.  Our custom transformer takes care of mention nodes.
+      const markdownString = editorState.read(() => {
+        return $convertToMarkdownString(customTransformers);
+      });
+
+      onChange(markdownString.trim());
+    },
+    [onChange, customTransformers],
+  );
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
     <div ref={containerRef} className={className + " relative lexical-editor-container"} data-fieldid={fieldId || undefined}>

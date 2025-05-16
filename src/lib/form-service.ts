@@ -38,17 +38,38 @@ export async function createForm(formData: any) {
 export async function getUserForms(teamId?: string | null) {
   const session = await getServerSession(authOptions);
   
-  if (!session?.user?.id) {
-    return [];
+  /**
+   * If the requester IS authenticated we keep the previous behaviour:
+   *   - Always scope by the owner (userId)
+   *   - Optionally additionally filter by `teamId` (or allow team-agnostic forms)
+   *
+   * If the requester is NOT authenticated we only return forms when a
+   * `teamId` is explicitly provided. This allows public (unauthenticated)
+   * users to load and submit a team's forms while still preventing any
+   * accidental leakage of a user's private data.
+   */
+
+  let whereClause: any = {};
+
+  if (session?.user?.id) {
+    // Authenticated – restrict to their own forms.
+    whereClause.userId = session.user.id;
+
+    // If a teamId filter is supplied show both team-specific and personal forms.
+    if (teamId) {
+      whereClause.OR = [{ teamId }, { teamId: null }];
+    }
+  } else {
+    // Unauthenticated – only allow access via explicit teamId.
+    if (!teamId) {
+      return [];
+    }
+    whereClause.teamId = teamId;
   }
-  
-  const whereClause: any = { userId: session.user.id };
-  if (teamId) {
-    whereClause.OR = [{ teamId }, { teamId: null }];
-  }
+
   return prisma.form.findMany({
     where: whereClause,
-    orderBy: { updatedAt: 'desc' }
+    orderBy: { updatedAt: 'desc' },
   });
 }
 
